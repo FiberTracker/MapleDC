@@ -65,22 +65,23 @@ html, body { height: 100%; overflow: hidden; font-family: var(--font); backgroun
 /* ═══════════════ LAYOUT ═══════════════ */
 .app { display: flex; height: 100vh; width: 100vw; }
 .sidebar {
-  width: 480px; min-width: 480px; height: 100vh; background: var(--surface);
-  border-right: 1px solid var(--border); display: flex; flex-direction: column; z-index: 1000;
-  transition: all 0.3s ease; overflow: hidden;
+  width: 480px; min-width: 320px; height: 100vh; background: var(--surface);
+  border-right: none; display: flex; flex-direction: column; z-index: 1000;
+  overflow: hidden; position: relative; flex-shrink: 0;
 }
-.sidebar.expanded { width: 100% !important; min-width: 100% !important; border-right: none; }
-.sidebar.collapsed { transform: translateX(-480px); width: 0; min-width: 0; }
-.sidebar-toggle {
-  position: absolute; left: 480px; top: 50%; transform: translateY(-50%); z-index: 1001;
-  width: 24px; height: 48px; background: var(--surface); border: 1px solid var(--border);
-  border-left: none; border-radius: 0 6px 6px 0; cursor: pointer; display: flex;
-  align-items: center; justify-content: center; transition: left 0.3s ease;
+.sidebar.expanded { width: 100% !important; min-width: 100% !important; }
+.sidebar.no-transition { transition: none !important; }
+.resize-handle {
+  position: absolute; right: 0; top: 0; bottom: 0; width: 6px; cursor: col-resize;
+  z-index: 1002; background: transparent; transition: background 0.15s;
 }
-.sidebar.collapsed + .sidebar-toggle { left: 0; }
-.sidebar-toggle svg { width: 12px; height: 12px; fill: var(--gray-400); transition: transform 0.3s; }
-.sidebar.collapsed + .sidebar-toggle svg { transform: rotate(180deg); }
-.sidebar-toggle:hover { background: var(--surface-alt); }
+.resize-handle::after {
+  content: ''; position: absolute; right: 2px; top: 50%; transform: translateY(-50%);
+  width: 2px; height: 40px; border-radius: 1px; background: var(--gray-200); transition: background 0.15s;
+}
+.resize-handle:hover, .resize-handle.dragging { background: rgba(230,0,0,0.06); }
+.resize-handle:hover::after, .resize-handle.dragging::after { background: var(--red); width: 3px; }
+.sidebar-toggle { display: none; }
 .expand-btn {
   background: var(--surface); border: 1px solid var(--border); border-radius: 4px;
   padding: 4px 6px; cursor: pointer; color: var(--gray-400); transition: all 0.15s;
@@ -396,6 +397,7 @@ sup.ref { font-size: 8px; color: var(--red); cursor: help; font-weight: 600; }
 
 <!-- ═══════════════ SIDEBAR ═══════════════ -->
 <div class="sidebar" id="sidebar">
+  <div class="resize-handle" id="resizeHandle"></div>
   <div class="sidebar-header">
     <div style="display:flex;justify-content:space-between;align-items:flex-start">
       <div>
@@ -1883,34 +1885,31 @@ document.querySelectorAll('.tab-btn').forEach(btn => {
 
     const mapEl = document.getElementById('map');
     const legendEl = document.querySelector('.map-legend');
-    const toggleEl = document.getElementById('sidebarToggle');
-
     const sb = document.getElementById('sidebar');
-
     const tabId = btn.dataset.tab;
     const isMarket = tabId.startsWith('mkt-');
     const isFullWidth = isMarket || tabId === 'charts';
 
     if (isFullWidth) {
-      // Full-width tabs — hide main map
+      // Full-width — hide map, expand sidebar
+      sb.style.width = '100%';
       sb.classList.add('expanded');
       mapEl.style.display = 'none';
       if (legendEl) legendEl.style.display = 'none';
-      if (toggleEl) toggleEl.style.display = 'none';
       document.getElementById('expandIcon').innerHTML = '<path d="M5 16h3v3h2v-5H5v2zm3-8H5v2h5V5H8v3zm6 11h2v-3h3v-2h-5v5zm2-11V5h-2v5h5V8h-3z"/>';
 
       if (isMarket) setTimeout(() => initMarketMap(tabId), 150);
       if (tabId === 'charts' && !window._chartsBuilt) { setTimeout(() => { buildFullCharts(); window._chartsBuilt = true; }, 100); }
     } else {
-      // Sidebar mode — show main map (unless user manually expanded)
-      if (!sb.classList.contains('user-expanded')) {
+      // Keep current width (user may have resized) but ensure map is visible
+      if (sb.classList.contains('expanded') && !sb.classList.contains('user-expanded')) {
         sb.classList.remove('expanded');
-        mapEl.style.display = '';
-        if (legendEl) legendEl.style.display = '';
-        if (toggleEl) { toggleEl.style.display = ''; toggleEl.style.left = '480px'; }
-        document.getElementById('expandIcon').innerHTML = '<path d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z"/>';
-        setTimeout(() => map.invalidateSize(), 100);
+        sb.style.width = '480px';
       }
+      mapEl.style.display = '';
+      if (legendEl) legendEl.style.display = '';
+      document.getElementById('expandIcon').innerHTML = '<path d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z"/>';
+      setTimeout(() => map.invalidateSize(), 100);
 
       if (tabId === 'bce') map.flyTo([52, -115], 5, { duration: 0.8 });
       else if (tabId === 'overview' || tabId === 'sovereign') map.flyTo([56, -96], 4, { duration: 0.8 });
@@ -1952,43 +1951,103 @@ function buildLegend() {
 
 
 /* ═══════════════════════════════════════════════════════
-   SIDEBAR TOGGLE
+   SIDEBAR RESIZE (drag handle)
    ═══════════════════════════════════════════════════════ */
 
-function toggleSidebar() {
-  const sb = document.getElementById('sidebar');
-  sb.classList.toggle('collapsed');
-  document.getElementById('sidebarToggle').style.left = sb.classList.contains('collapsed') ? '0' : (sb.classList.contains('expanded') ? '100%' : '480px');
-  setTimeout(() => map.invalidateSize(), 350);
-}
+function toggleSidebar() {} // kept for compat
 
 function toggleExpand() {
   const sb = document.getElementById('sidebar');
   const mapEl = document.getElementById('map');
   const legendEl = document.querySelector('.map-legend');
-  const toggleEl = document.getElementById('sidebarToggle');
   const icon = document.getElementById('expandIcon');
   const isExpanded = sb.classList.contains('expanded');
 
   if (isExpanded) {
-    // Collapse back to sidebar mode — show map
     sb.classList.remove('expanded');
     sb.classList.remove('user-expanded');
+    sb.style.width = '480px';
     mapEl.style.display = '';
     if (legendEl) legendEl.style.display = '';
-    if (toggleEl) { toggleEl.style.display = ''; toggleEl.style.left = '480px'; }
     icon.innerHTML = '<path d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z"/>';
-    setTimeout(() => map.invalidateSize(), 350);
+    setTimeout(() => map.invalidateSize(), 50);
   } else {
-    // Expand sidebar full-width — hide map
     sb.classList.add('expanded');
     sb.classList.add('user-expanded');
     mapEl.style.display = 'none';
     if (legendEl) legendEl.style.display = 'none';
-    if (toggleEl) toggleEl.style.display = 'none';
     icon.innerHTML = '<path d="M5 16h3v3h2v-5H5v2zm3-8H5v2h5V5H8v3zm6 11h2v-3h3v-2h-5v5zm2-11V5h-2v5h5V8h-3z"/>';
   }
 }
+
+// Drag-to-resize sidebar
+(function() {
+  const handle = document.getElementById('resizeHandle');
+  const sb = document.getElementById('sidebar');
+  const mapEl = document.getElementById('map');
+  const legendEl = document.querySelector('.map-legend');
+  let dragging = false;
+  let startX, startW;
+
+  handle.addEventListener('mousedown', e => {
+    e.preventDefault();
+    dragging = true;
+    startX = e.clientX;
+    startW = sb.offsetWidth;
+    sb.classList.add('no-transition');
+    handle.classList.add('dragging');
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+  });
+
+  document.addEventListener('mousemove', e => {
+    if (!dragging) return;
+    const dx = e.clientX - startX;
+    const newW = Math.max(320, Math.min(window.innerWidth, startW + dx));
+    sb.style.width = newW + 'px';
+
+    // If dragged to full width, hide the map
+    if (newW >= window.innerWidth - 20) {
+      mapEl.style.display = 'none';
+      if (legendEl) legendEl.style.display = 'none';
+    } else {
+      mapEl.style.display = '';
+      if (legendEl) legendEl.style.display = '';
+      map.invalidateSize();
+    }
+  });
+
+  document.addEventListener('mouseup', () => {
+    if (!dragging) return;
+    dragging = false;
+    sb.classList.remove('no-transition');
+    handle.classList.remove('dragging');
+    document.body.style.cursor = '';
+    document.body.style.userSelect = '';
+
+    // Snap: if close to full width, go full; if close to default, snap back
+    const w = sb.offsetWidth;
+    if (w >= window.innerWidth - 40) {
+      sb.style.width = '100%';
+      sb.classList.add('expanded');
+      mapEl.style.display = 'none';
+      if (legendEl) legendEl.style.display = 'none';
+      document.getElementById('expandIcon').innerHTML = '<path d="M5 16h3v3h2v-5H5v2zm3-8H5v2h5V5H8v3zm6 11h2v-3h3v-2h-5v5zm2-11V5h-2v5h5V8h-3z"/>';
+    } else {
+      sb.classList.remove('expanded');
+      mapEl.style.display = '';
+      if (legendEl) legendEl.style.display = '';
+      document.getElementById('expandIcon').innerHTML = '<path d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z"/>';
+      setTimeout(() => map.invalidateSize(), 50);
+    }
+
+    // Refresh any active market maps
+    Object.values(marketMapInstances).forEach(m => m.invalidateSize());
+  });
+
+  // Double-click handle to toggle between default and full width
+  handle.addEventListener('dblclick', () => toggleExpand());
+})();
 
 
 /* ═══════════════════════════════════════════════════════
