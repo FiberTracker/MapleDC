@@ -1,0 +1,1737 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MapleDC — Canada Datacenter Intelligence</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+<style>
+/* ═══════════════ PASSWORD GATE ═══════════════ */
+#password-gate {
+  position: fixed; inset: 0; z-index: 99999; background: #f7f6f3;
+  display: flex; align-items: center; justify-content: center; flex-direction: column;
+  font-family: 'DM Sans', sans-serif;
+}
+#password-gate.hidden { display: none; }
+.gate-logo { font-size: 28px; font-weight: 700; letter-spacing: -0.5px; color: #1a1a1a; margin-bottom: 6px; }
+.gate-logo span { color: #E60000; }
+.gate-sub { font-size: 12px; color: #888; margin-bottom: 28px; }
+.gate-input {
+  width: 260px; padding: 10px 14px; font-size: 14px; font-family: 'JetBrains Mono', monospace;
+  border: 1px solid #d0d0d0; border-radius: 6px; text-align: center; outline: none;
+  background: #fff; color: #1a1a1a; transition: border-color 0.2s;
+}
+.gate-input:focus { border-color: #E60000; }
+.gate-input.error { border-color: #E60000; animation: shake 0.3s; }
+@keyframes shake { 0%,100%{transform:translateX(0)} 25%{transform:translateX(-6px)} 75%{transform:translateX(6px)} }
+.gate-btn {
+  margin-top: 12px; padding: 8px 32px; font-size: 12px; font-weight: 600; letter-spacing: 1px;
+  text-transform: uppercase; border: 1px solid #1a1a1a; border-radius: 4px;
+  background: #1a1a1a; color: #fff; cursor: pointer; font-family: 'DM Sans', sans-serif;
+}
+.gate-btn:hover { background: #E60000; border-color: #E60000; }
+
+/* ═══════════════ VARIABLES & RESET ═══════════════ */
+* { margin: 0; padding: 0; box-sizing: border-box; }
+:root {
+  --red: #E60000; --black: #1a1a1a; --white: #ffffff;
+  --gray-50: #f7f6f3; --gray-100: #edecea; --gray-200: #d9d7d2;
+  --gray-300: #b8b5ae; --gray-400: #8e8b83; --gray-500: #6b6862;
+  --gray-600: #4a4843; --gray-700: #333231; --gray-800: #1a1a1a;
+  --bordeaux: #BD000C; --bronze: #B98E2C; --bronze-light: #d4b05c;
+  --lagoon: #00759E; --lake: #0C7EC6; --sage: #469A6C; --sage-light: #e8f5ee;
+  --plum: #4972AC; --mint: #45999C; --kiwi: #879420;
+  --amber: #E4A911; --amber-light: #fef7e6;
+  --surface: #ffffff; --surface-alt: #f7f6f3; --surface-card: #ffffff;
+  --border: #e8e6e1; --border-strong: #d0cdc6;
+  --text-primary: #1a1a1a; --text-secondary: #4a4843; --text-muted: #8e8b83;
+  --font: 'DM Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+  --mono: 'JetBrains Mono', 'SF Mono', monospace;
+  --shadow-sm: 0 1px 3px rgba(0,0,0,0.06);
+  --shadow-md: 0 4px 12px rgba(0,0,0,0.08);
+  --shadow-lg: 0 8px 24px rgba(0,0,0,0.12);
+}
+html, body { height: 100%; overflow: hidden; font-family: var(--font); background: var(--surface); color: var(--text-primary); }
+@media print {
+  .sidebar { width: 100% !important; position: static !important; height: auto !important; overflow: visible !important; }
+  #map, .sidebar-toggle { display: none !important; }
+  .app { display: block !important; }
+}
+
+/* ═══════════════ LAYOUT ═══════════════ */
+.app { display: flex; height: 100vh; width: 100vw; }
+.sidebar {
+  width: 480px; min-width: 480px; height: 100vh; background: var(--surface);
+  border-right: 1px solid var(--border); display: flex; flex-direction: column; z-index: 1000;
+  transition: transform 0.3s ease, width 0.3s ease, min-width 0.3s ease; overflow: hidden;
+}
+.sidebar.collapsed { transform: translateX(-480px); width: 0; min-width: 0; }
+.sidebar-toggle {
+  position: absolute; left: 480px; top: 50%; transform: translateY(-50%); z-index: 1001;
+  width: 24px; height: 48px; background: var(--surface); border: 1px solid var(--border);
+  border-left: none; border-radius: 0 6px 6px 0; cursor: pointer; display: flex;
+  align-items: center; justify-content: center; transition: left 0.3s ease;
+}
+.sidebar.collapsed + .sidebar-toggle { left: 0; }
+.sidebar-toggle svg { width: 12px; height: 12px; fill: var(--gray-400); transition: transform 0.3s; }
+.sidebar.collapsed + .sidebar-toggle svg { transform: rotate(180deg); }
+.sidebar-toggle:hover { background: var(--surface-alt); }
+#map { flex: 1; height: 100vh; background: var(--gray-50); }
+
+/* ═══════════════ SIDEBAR HEADER ═══════════════ */
+.sidebar-header { padding: 16px 20px 12px; border-bottom: 1px solid var(--border); flex-shrink: 0; background: var(--surface-alt); }
+.sidebar-title { font-size: 17px; font-weight: 700; letter-spacing: -0.3px; line-height: 1.25; margin-bottom: 2px; }
+.sidebar-title span { color: var(--red); }
+.sidebar-subtitle { font-size: 10px; color: var(--text-muted); font-weight: 400; line-height: 1.4; }
+.stat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 10px; }
+.stat-card {
+  background: var(--surface); border-radius: 6px; padding: 8px 10px;
+  border: 1px solid var(--border); border-left: 3px solid var(--lagoon);
+  box-shadow: var(--shadow-sm);
+}
+.stat-card.red { border-left-color: var(--red); }
+.stat-card.bronze { border-left-color: var(--bronze); }
+.stat-card.sage { border-left-color: var(--sage); }
+.stat-card.amber { border-left-color: var(--amber); }
+.stat-value { font-size: 17px; font-weight: 700; letter-spacing: -0.5px; line-height: 1.1; font-family: var(--mono); color: var(--text-primary); }
+.stat-value.red { color: var(--red); }
+.stat-value.bronze { color: var(--bronze); }
+.stat-value.sage { color: var(--sage); }
+.stat-value.lagoon { color: var(--lagoon); }
+.stat-value.amber { color: var(--amber); }
+.stat-label { font-size: 9px; color: var(--text-muted); margin-top: 2px; line-height: 1.3; }
+
+/* ═══════════════ TAB NAVIGATION ═══════════════ */
+.tab-bar { display: flex; border-bottom: 1px solid var(--border); flex-shrink: 0; background: var(--surface); overflow-x: auto; }
+.tab-btn {
+  flex-shrink: 0; padding: 9px 10px 7px; font-size: 9px; font-weight: 600; letter-spacing: 0.7px;
+  text-transform: uppercase; color: var(--gray-400); background: none; border: none;
+  cursor: pointer; position: relative; transition: color 0.2s; font-family: var(--font); white-space: nowrap;
+}
+.tab-btn:hover { color: var(--text-secondary); }
+.tab-btn.active { color: var(--red); }
+.tab-btn.active::after {
+  content: ''; position: absolute; bottom: 0; left: 15%; right: 15%;
+  height: 2px; background: var(--red); border-radius: 1px 1px 0 0;
+}
+
+/* ═══════════════ TAB CONTENT ═══════════════ */
+.sidebar-content { flex: 1; overflow-y: auto; }
+.sidebar-content::-webkit-scrollbar { width: 4px; }
+.sidebar-content::-webkit-scrollbar-track { background: transparent; }
+.sidebar-content::-webkit-scrollbar-thumb { background: var(--gray-200); border-radius: 2px; }
+.tab-panel { display: none; }
+.tab-panel.active { display: block; }
+.section { padding: 14px 20px; border-bottom: 1px solid var(--border); }
+.section:last-child { border-bottom: none; }
+.section-label {
+  font-size: 9px; font-weight: 600; letter-spacing: 1.6px; text-transform: uppercase;
+  color: var(--text-muted); margin-bottom: 10px;
+}
+
+/* ═══════════════ FOOTNOTES ═══════════════ */
+.footnotes { padding: 10px 20px 14px; border-top: 1px solid var(--border); background: var(--surface-alt); }
+.footnote-title { font-size: 8px; font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase; color: var(--text-muted); margin-bottom: 6px; }
+.fn { font-size: 9px; color: var(--text-muted); line-height: 1.5; margin-bottom: 2px; }
+.fn a { color: var(--lagoon); text-decoration: none; }
+.fn a:hover { text-decoration: underline; }
+sup.ref { font-size: 8px; color: var(--red); cursor: help; font-weight: 600; }
+
+/* ═══════════════ FILTER TOGGLES ═══════════════ */
+.filter-grid { display: flex; flex-wrap: wrap; gap: 4px; }
+.filter-btn {
+  padding: 3px 8px; font-size: 9.5px; font-weight: 500; border-radius: 4px;
+  border: 1px solid var(--border); background: var(--surface); color: var(--text-secondary);
+  cursor: pointer; transition: all 0.15s; font-family: var(--font);
+}
+.filter-btn.active { border-color: var(--gray-400); background: var(--surface-alt); font-weight: 600; }
+.filter-btn .dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; margin-right: 4px; vertical-align: middle; }
+
+/* ═══════════════ SITE CARDS ═══════════════ */
+.site-card {
+  background: var(--surface); border-radius: 6px; padding: 10px 12px; margin-bottom: 6px;
+  border: 1px solid var(--border); cursor: pointer; transition: all 0.15s; box-shadow: var(--shadow-sm);
+}
+.site-card:hover { border-color: var(--gray-300); box-shadow: var(--shadow-md); }
+.site-card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; }
+.site-id { font-size: 11px; font-weight: 700; color: var(--red); font-family: var(--mono); }
+.site-name { font-size: 11px; font-weight: 600; color: var(--text-primary); margin-bottom: 3px; }
+.site-detail { font-size: 10px; color: var(--text-muted); line-height: 1.5; }
+.site-detail strong { color: var(--text-secondary); font-weight: 600; }
+.badge {
+  font-size: 8px; font-weight: 700; letter-spacing: 0.4px; text-transform: uppercase;
+  padding: 2px 6px; border-radius: 3px; display: inline-block; white-space: nowrap;
+}
+.badge.operational { background: #e8f5ee; color: #2d7a4a; }
+.badge.construction { background: #fef7e6; color: #b8860b; }
+.badge.planned { background: #e6f3f8; color: #00759E; }
+.badge.advanced { background: #edf1f8; color: #4972AC; }
+.badge.pre-permit { background: #f5f0e1; color: #936F29; }
+.badge.mou { background: #f0efed; color: #6b6862; }
+.badge.sovereign { background: #e8f5ee; color: #2d7a4a; border: 1px solid #c3e6d0; }
+.badge.cloud-act { background: #fde8e8; color: #BD000C; border: 1px solid #f5c6c6; }
+.badge.threat-high { background: #fde8e8; color: #BD000C; }
+.badge.threat-med { background: #fef7e6; color: #b8860b; }
+.badge.expanding { background: #fef7e6; color: #b8860b; }
+
+/* ═══════════════ CALLOUT ═══════════════ */
+.callout {
+  background: #f9f6ef; border: 1px solid #e8e2d0; border-left: 3px solid var(--bronze);
+  border-radius: 6px; padding: 10px 12px; margin-bottom: 8px;
+}
+.callout-title { font-size: 10px; font-weight: 700; color: var(--bronze); margin-bottom: 3px; letter-spacing: 0.2px; }
+.callout-text { font-size: 10px; color: var(--text-secondary); line-height: 1.5; }
+.callout-text em { font-style: italic; color: var(--text-muted); }
+.callout.red { background: #fef5f5; border-color: #f5d5d5; border-left-color: var(--red); }
+.callout.red .callout-title { color: var(--red); }
+.callout.sage { background: #f0f8f3; border-color: #c3e6d0; border-left-color: var(--sage); }
+.callout.sage .callout-title { color: var(--sage); }
+
+/* ═══════════════ TIMELINE ═══════════════ */
+.timeline { position: relative; padding-left: 18px; }
+.timeline::before {
+  content: ''; position: absolute; left: 4px; top: 4px; bottom: 4px;
+  width: 1px; background: var(--border-strong);
+}
+.tl-entry { position: relative; padding-bottom: 12px; }
+.tl-entry:last-child { padding-bottom: 0; }
+.tl-entry::before {
+  content: ''; position: absolute; left: -18px; top: 5px;
+  width: 8px; height: 8px; border-radius: 50%; border: 2px solid var(--gray-300);
+  background: var(--surface);
+}
+.tl-entry.live::before { background: var(--sage); border-color: var(--sage); }
+.tl-entry.building::before { background: var(--amber); border-color: var(--amber); }
+.tl-date { font-size: 10px; font-weight: 600; color: var(--text-secondary); font-family: var(--mono); }
+.tl-text { font-size: 10px; color: var(--text-muted); margin-top: 1px; line-height: 1.4; }
+
+/* ═══════════════ POWER BARS ═══════════════ */
+.power-row { display: flex; align-items: center; margin-bottom: 6px; }
+.power-label { width: 95px; font-size: 10px; font-weight: 500; color: var(--text-secondary); flex-shrink: 0; }
+.power-track { flex: 1; height: 14px; background: var(--gray-100); border-radius: 3px; overflow: hidden; margin: 0 8px; }
+.power-fill { height: 100%; border-radius: 3px; transition: width 0.5s ease; }
+.power-val { font-size: 10px; font-weight: 600; font-family: var(--mono); color: var(--text-primary); width: 50px; text-align: right; flex-shrink: 0; }
+.power-note { font-size: 8.5px; color: var(--text-muted); padding-left: 103px; margin-top: -2px; margin-bottom: 5px; line-height: 1.3; }
+
+/* ═══════════════ COMPETITOR CARDS ═══════════════ */
+.comp-card {
+  background: var(--surface); border-radius: 6px; padding: 10px 12px; margin-bottom: 5px;
+  border: 1px solid var(--border); display: flex; justify-content: space-between; align-items: flex-start;
+  cursor: pointer; transition: all 0.15s; box-shadow: var(--shadow-sm);
+}
+.comp-card:hover { border-color: var(--gray-300); box-shadow: var(--shadow-md); }
+.comp-left { flex: 1; }
+.comp-name { font-size: 12px; font-weight: 700; margin-bottom: 2px; }
+.comp-site { font-size: 10px; color: var(--text-muted); }
+.comp-detail { font-size: 10px; color: var(--text-muted); margin-top: 3px; line-height: 1.5; }
+.comp-right { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; flex-shrink: 0; margin-left: 10px; }
+.comp-mw { font-size: 14px; font-weight: 700; font-family: var(--mono); color: var(--bronze); }
+.comp-mw-label { font-size: 8px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.4px; }
+
+/* ═══════════════ INVESTOR CARDS ═══════════════ */
+.inv-category { margin-bottom: 12px; }
+.inv-category-label { font-size: 10px; font-weight: 700; color: var(--bronze); margin-bottom: 5px; letter-spacing: 0.2px; }
+.inv-item {
+  background: var(--surface); border-radius: 5px; padding: 7px 10px; margin-bottom: 3px;
+  border: 1px solid var(--border); font-size: 10px; line-height: 1.4; box-shadow: var(--shadow-sm);
+}
+.inv-item .inv-name { font-weight: 600; color: var(--text-primary); }
+.inv-item .inv-detail { color: var(--text-muted); font-size: 9.5px; margin-top: 1px; }
+.inv-item .inv-metric { font-family: var(--mono); font-size: 9.5px; color: var(--lagoon); }
+
+/* ═══════════════ POWER QUEUE TABLE ═══════════════ */
+.queue-table { width: 100%; border-collapse: collapse; font-size: 9.5px; }
+.queue-table th {
+  text-align: left; font-size: 8px; font-weight: 700; letter-spacing: 0.8px; text-transform: uppercase;
+  color: var(--text-muted); padding: 6px 6px 4px; border-bottom: 2px solid var(--border-strong);
+}
+.queue-table td { padding: 5px 6px; border-bottom: 1px solid var(--border); color: var(--text-secondary); vertical-align: top; }
+.queue-table tr:hover { background: var(--surface-alt); }
+.queue-table .company { font-weight: 600; color: var(--text-primary); }
+.queue-table .mw-cell { font-family: var(--mono); font-weight: 600; color: var(--bronze); }
+
+/* ═══════════════ CHART CONTAINERS ═══════════════ */
+.chart-container { position: relative; width: 100%; margin: 8px 0; }
+.chart-container canvas { max-height: 220px; }
+
+/* ═══════════════ SOVEREIGN POLICY CARDS ═══════════════ */
+.policy-card {
+  background: var(--surface); border: 1px solid var(--border); border-radius: 6px;
+  padding: 10px 12px; margin-bottom: 6px; box-shadow: var(--shadow-sm);
+}
+.policy-card .policy-title { font-size: 11px; font-weight: 700; color: var(--text-primary); margin-bottom: 3px; }
+.policy-card .policy-date { font-size: 9px; color: var(--text-muted); font-family: var(--mono); }
+.policy-card .policy-body { font-size: 10px; color: var(--text-secondary); line-height: 1.5; margin-top: 4px; }
+
+/* ═══════════════ MARKET ZOOM MINI-MAPS ═══════════════ */
+.mini-map-container { border: 1px solid var(--border); border-radius: 6px; overflow: hidden; margin-bottom: 10px; box-shadow: var(--shadow-sm); }
+.mini-map { height: 200px; width: 100%; }
+.mini-map-label {
+  padding: 6px 10px; background: var(--surface-alt); border-bottom: 1px solid var(--border);
+  font-size: 10px; font-weight: 700; color: var(--text-primary); display: flex; justify-content: space-between;
+}
+.mini-map-label .metro-stat { font-family: var(--mono); font-weight: 600; color: var(--bronze); font-size: 10px; }
+
+/* ═══════════════ CEO QUOTE ═══════════════ */
+.ceo-quote {
+  border-left: 2px solid var(--red); padding: 5px 0 5px 10px; margin: 6px 0;
+  font-size: 10px; font-style: italic; color: var(--text-secondary); line-height: 1.5;
+}
+.ceo-quote .attr { font-style: normal; font-size: 9px; color: var(--text-muted); margin-top: 3px; }
+
+/* ═══════════════ MAP STYLING ═══════════════ */
+.leaflet-popup-content-wrapper {
+  background: #fff !important; border-radius: 8px !important;
+  border: 1px solid var(--border) !important; box-shadow: var(--shadow-lg) !important;
+}
+.leaflet-popup-tip { background: #fff !important; }
+.leaflet-popup-content { margin: 0 !important; font-family: var(--font) !important; min-width: 260px; }
+.popup-header { padding: 10px 12px 6px; border-bottom: 1px solid var(--border); }
+.popup-title { font-size: 13px; font-weight: 700; color: var(--text-primary); }
+.popup-subtitle { font-size: 10px; color: var(--text-muted); margin-top: 1px; }
+.popup-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1px; background: var(--border); }
+.popup-cell { background: #fff; padding: 7px 10px; }
+.popup-cell-value { font-size: 15px; font-weight: 700; font-family: var(--mono); }
+.popup-cell-label { font-size: 8px; color: var(--text-muted); margin-top: 1px; }
+.popup-footer { padding: 7px 12px 8px; font-size: 9.5px; color: var(--text-muted); line-height: 1.4; }
+.popup-badges { padding: 5px 12px 6px; display: flex; gap: 3px; flex-wrap: wrap; }
+.popup-reg { padding: 6px 12px; border-top: 1px solid var(--border); }
+.popup-reg-title { font-size: 8px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.8px; color: var(--text-muted); margin-bottom: 2px; }
+.popup-reg-text { font-size: 9.5px; color: var(--text-secondary); line-height: 1.4; }
+
+/* ═══════════════ MAP LEGEND ═══════════════ */
+.map-legend {
+  background: #fff; border-radius: 6px; padding: 10px 12px; border: 1px solid var(--border);
+  font-family: var(--font); box-shadow: var(--shadow-md); max-height: 300px; overflow-y: auto;
+}
+.legend-title { font-size: 9px; font-weight: 700; color: var(--text-primary); margin-bottom: 6px; letter-spacing: 0.3px; }
+.legend-item { display: flex; align-items: center; margin-bottom: 4px; font-size: 9px; color: var(--text-secondary); }
+.legend-item:last-child { margin-bottom: 0; }
+.legend-dot { width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; flex-shrink: 0; }
+.legend-line { width: 18px; height: 3px; margin-right: 6px; flex-shrink: 0; border-radius: 1px; }
+.legend-section { margin-top: 6px; padding-top: 6px; border-top: 1px solid var(--border); }
+
+/* ═══════════════ DC ICON MARKERS ═══════════════ */
+.dc-icon { display: flex; flex-direction: column; align-items: center; filter: drop-shadow(0 1px 3px rgba(0,0,0,0.2)); }
+.dc-icon:hover { transform: scale(1.15); z-index: 9999 !important; }
+.dc-icon .dc-building { display: flex; align-items: flex-end; gap: 1px; }
+.dc-icon .dc-rack {
+  border-radius: 1px; border: 1px solid rgba(255,255,255,0.4);
+  background: currentColor; position: relative;
+}
+.dc-icon .dc-rack::after {
+  content: ''; position: absolute; top: 15%; left: 20%; right: 20%; bottom: 15%;
+  background: repeating-linear-gradient(to bottom, transparent, transparent 2px, rgba(255,255,255,0.3) 2px, rgba(255,255,255,0.3) 3px);
+}
+.dc-icon .dc-label {
+  font-size: 7px; font-weight: 700; color: var(--text-primary); font-family: var(--mono);
+  background: rgba(255,255,255,0.9); padding: 0 2px; border-radius: 1px; margin-top: 1px;
+  line-height: 1.2; text-align: center; white-space: nowrap;
+}
+
+/* ═══════════════ NEWS MODAL ═══════════════ */
+.news-modal {
+  display: none; position: fixed; inset: 0; z-index: 5000; background: rgba(0,0,0,0.3);
+  align-items: center; justify-content: center;
+}
+.news-modal.active { display: flex; }
+.news-modal-content {
+  background: #fff; border-radius: 10px; width: 420px; max-height: 80vh; overflow-y: auto;
+  box-shadow: var(--shadow-lg); border: 1px solid var(--border);
+}
+.news-modal-header {
+  padding: 14px 16px 10px; border-bottom: 1px solid var(--border); position: sticky; top: 0;
+  background: #fff; display: flex; justify-content: space-between; align-items: center;
+}
+.news-modal-header h3 { font-size: 14px; font-weight: 700; }
+.news-modal-close { background: none; border: none; font-size: 18px; cursor: pointer; color: var(--text-muted); padding: 4px; }
+.news-modal-body { padding: 12px 16px; }
+.news-item { padding: 8px 0; border-bottom: 1px solid var(--border); }
+.news-item:last-child { border-bottom: none; }
+.news-item .news-date { font-size: 9px; font-family: var(--mono); color: var(--text-muted); }
+.news-item .news-headline { font-size: 11px; font-weight: 600; color: var(--text-primary); margin-top: 2px; }
+.news-item .news-source { font-size: 9px; color: var(--lagoon); }
+.news-item a { color: var(--lagoon); text-decoration: none; }
+.news-item a:hover { text-decoration: underline; }
+
+/* ═══════════════ UTILS ═══════════════ */
+.mt-6 { margin-top: 6px; } .mt-8 { margin-top: 8px; } .mt-12 { margin-top: 12px; } .mb-6 { margin-bottom: 6px; }
+.flex-between { display: flex; justify-content: space-between; align-items: center; }
+.text-muted { color: var(--text-muted); } .text-sm { font-size: 10px; }
+.mono { font-family: var(--mono); }
+.hidden { display: none !important; }
+</style>
+</head>
+<body>
+
+<!-- ═══════════════ PASSWORD GATE ═══════════════ -->
+<div id="password-gate">
+  <div class="gate-logo">Maple<span>DC</span></div>
+  <div class="gate-sub">Canada Datacenter Intelligence</div>
+  <input type="password" class="gate-input" id="gate-pw" placeholder="Enter access code" autocomplete="off">
+  <button class="gate-btn" onclick="checkPassword()">Enter</button>
+</div>
+
+<!-- ═══════════════ MAIN APP ═══════════════ -->
+<div class="app hidden" id="main-app">
+
+<!-- ═══════════════ SIDEBAR ═══════════════ -->
+<div class="sidebar" id="sidebar">
+  <div class="sidebar-header">
+    <div class="sidebar-title">Maple<span>DC</span> Intelligence</div>
+    <div class="sidebar-subtitle">Canadian Datacenter Competitive Landscape — Sovereign AI, Power & Capital</div>
+    <div class="stat-grid">
+      <div class="stat-card">
+        <div class="stat-value lagoon">10+ GW</div>
+        <div class="stat-label">Total DC Pipeline<sup class="ref" title="JLL Canada DC Market Report, Jan 2026">1</sup></div>
+      </div>
+      <div class="stat-card red">
+        <div class="stat-value red">500+ MW</div>
+        <div class="stat-label">BCE AI Fabric Target<sup class="ref" title="BCE Investor Day, Oct 2025">2</sup></div>
+      </div>
+      <div class="stat-card bronze">
+        <div class="stat-value bronze">29-34%</div>
+        <div class="stat-label">AI DC CAGR '25-'30<sup class="ref" title="Cushman & Wakefield / CBRE Canada DC Outlook 2025">3</sup></div>
+      </div>
+      <div class="stat-card sage">
+        <div class="stat-value sage">3.7¢</div>
+        <div class="stat-label">BC Hydro USD/kWh<sup class="ref" title="BC Hydro Rate Schedule 1823, 2025">4</sup></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Tab bar -->
+  <div class="tab-bar">
+    <button class="tab-btn active" data-tab="sovereign">Sovereign</button>
+    <button class="tab-btn" data-tab="overview">Overview</button>
+    <button class="tab-btn" data-tab="bce">BCE</button>
+    <button class="tab-btn" data-tab="landscape">Landscape</button>
+    <button class="tab-btn" data-tab="power">Power</button>
+    <button class="tab-btn" data-tab="queue">Queue</button>
+    <button class="tab-btn" data-tab="markets">Markets</button>
+    <button class="tab-btn" data-tab="investors">Investors</button>
+  </div>
+
+  <!-- Tab content -->
+  <div class="sidebar-content">
+
+    <!-- ═══ TAB: SOVEREIGN ═══ -->
+    <div class="tab-panel active" id="tab-sovereign">
+      <div class="section">
+        <div class="section-label">Why Sovereign Compute Matters</div>
+        <div class="callout sage">
+          <div class="callout-title">Canadian Data Residency Imperative</div>
+          <div class="callout-text">
+            Federal government and critical infrastructure data increasingly required to reside on Canadian-owned infrastructure, outside the reach of the U.S. CLOUD Act. This creates structural demand for Canadian-owned DC operators.<sup class="ref" title="Government of Canada Digital Standards, Treasury Board">5</sup>
+          </div>
+        </div>
+      </div>
+
+      <div class="section">
+        <div class="section-label">Key Policy Developments</div>
+
+        <div class="policy-card">
+          <div class="policy-title">CLOUD Act Exposure — The Core Issue</div>
+          <div class="policy-date">Enacted: Mar 2018 (US)</div>
+          <div class="policy-body">
+            The U.S. Clarifying Lawful Overseas Use of Data Act allows U.S. law enforcement to compel U.S.-headquartered companies to produce data stored anywhere globally — including Canada. Any DC operator owned by a U.S. parent (Cologix/Stonepeak, Vantage/DigitalBridge, IREN, all hyperscalers) is subject to CLOUD Act data requests, regardless of where the server physically sits.<sup class="ref" title="U.S. DOJ CLOUD Act overview">6</sup>
+          </div>
+        </div>
+
+        <div class="policy-card">
+          <div class="policy-title">Federal Sovereign Compute Program</div>
+          <div class="policy-date">Announced: Budget 2024 | Deadline: Feb 15, 2026</div>
+          <div class="policy-body">
+            C$926M federal program to build sovereign AI compute capacity. Minimum threshold: 100MW per facility. Must be Canadian-owned and operated. Applications closed Feb 15, 2026. BCE applied via Queen's University (ON-1) and likely SK-1. Expected to fund 2-4 large facilities.<sup class="ref" title="Government of Canada Budget 2024, Chapter 6: AI & Compute">7</sup>
+          </div>
+        </div>
+
+        <div class="policy-card">
+          <div class="policy-title">Bill C-27 — Digital Charter Implementation Act</div>
+          <div class="policy-date">Status: Died on order paper (Parliament dissolved Jan 2025)</div>
+          <div class="policy-body">
+            Would have created Canada's first comprehensive data privacy law (CPPA) with data residency implications. Died when Parliament dissolved. Expected to be reintroduced in modified form. Creates regulatory uncertainty that benefits sovereign-positioned operators who can market CLOUD Act immunity today.<sup class="ref" title="Parliament of Canada, LEGISinfo Bill C-27">8</sup>
+          </div>
+        </div>
+
+        <div class="policy-card">
+          <div class="policy-title">Quebec Data Sovereignty Requirements</div>
+          <div class="policy-date">Law 25 — In Effect</div>
+          <div class="policy-body">
+            Quebec's Law 25 (modernized privacy law) imposes strict data localization requirements for Quebec public sector data. Creates captive demand for Quebec-based sovereign DCs. Benefits QScale, eStruxture, and BCE's eventual Quebec presence.<sup class="ref" title="Quebec National Assembly, Law 25 (Bill 64)">9</sup>
+          </div>
+        </div>
+
+        <div class="policy-card">
+          <div class="policy-title">Federal Pension DC Incentive (Proposed)</div>
+          <div class="policy-date">Status: Announced, not yet enacted</div>
+          <div class="policy-body">
+            C$15B proposed incentive to attract Canadian pension fund investment into domestic DC infrastructure. Would create tax-advantaged vehicles similar to renewable energy yieldcos. CPP, CDPQ, OMERS, AIMCo all have growing digital infra allocations.<sup class="ref" title="Government of Canada Fall Economic Statement 2025">10</sup>
+          </div>
+        </div>
+
+        <div class="policy-card">
+          <div class="policy-title">EU Comparison — GDPR & Data Act</div>
+          <div class="policy-date">Benchmark Reference</div>
+          <div class="policy-body">
+            EU's GDPR and Data Act provide the template Canada is moving toward. Key difference: EU has enacted comprehensive data sovereignty; Canada has patchwork (Quebec Law 25, federal PIPEDA, provincial variants). Gap creates urgency for sovereign DC operators who can market compliance today while regulation catches up.<sup class="ref" title="European Commission Data Act, 2024">11</sup>
+          </div>
+        </div>
+      </div>
+
+      <div class="section">
+        <div class="section-label">Sovereign vs CLOUD Act — Operator Map</div>
+        <div class="site-card" style="cursor:default">
+          <div class="site-detail" style="line-height:1.7">
+            <strong style="color:var(--sage)">SOVEREIGN (Canadian-owned):</strong><br>
+            BCE AI Fabric, QScale, eStruxture, TELUS<br><br>
+            <strong style="color:var(--bordeaux)">CLOUD ACT EXPOSED (US-owned/controlled):</strong><br>
+            Microsoft, AWS, Google, Meta, Cologix (Stonepeak), Vantage (DigitalBridge), IREN (NASDAQ), Oracle, Equinix, Digital Realty
+          </div>
+        </div>
+      </div>
+
+      <div class="footnotes">
+        <div class="footnote-title">Sources</div>
+        <div class="fn"><sup>5</sup> <a href="https://www.canada.ca/en/government/system/digital-government/government-canada-digital-standards.html" target="_blank">Government of Canada Digital Standards</a></div>
+        <div class="fn"><sup>6</sup> <a href="https://www.justice.gov/dag/cloud-act" target="_blank">U.S. DOJ — CLOUD Act</a></div>
+        <div class="fn"><sup>7</sup> <a href="https://budget.canada.ca/2024/home-accueil-en.html" target="_blank">Government of Canada Budget 2024</a></div>
+        <div class="fn"><sup>8</sup> <a href="https://www.parl.ca/legisinfo/en/bill/44-1/c-27" target="_blank">LEGISinfo — Bill C-27</a></div>
+        <div class="fn"><sup>9</sup> <a href="https://www.quebec.ca/en/government/governance/protection-personal-information/law-25" target="_blank">Quebec Law 25</a></div>
+        <div class="fn"><sup>10</sup> Government of Canada Fall Economic Statement 2025 — Market Intel / Chatter</div>
+        <div class="fn"><sup>11</sup> <a href="https://digital-strategy.ec.europa.eu/en/policies/data-act" target="_blank">European Commission — Data Act</a></div>
+      </div>
+    </div>
+
+    <!-- ═══ TAB: OVERVIEW ═══ -->
+    <div class="tab-panel" id="tab-overview">
+      <div class="section">
+        <div class="section-label">Map Layers</div>
+        <div class="filter-grid" id="operator-filters"></div>
+      </div>
+      <div class="section">
+        <div class="section-label">Status Filter</div>
+        <div class="filter-grid" id="status-filters"></div>
+      </div>
+      <div class="section">
+        <div class="section-label">Sovereignty Filter</div>
+        <div class="filter-grid">
+          <button class="filter-btn active" onclick="toggleSovFilter('all')"><span class="dot" style="background:var(--gray-400)"></span>All</button>
+          <button class="filter-btn" onclick="toggleSovFilter('sovereign')"><span class="dot" style="background:var(--sage)"></span>Sovereign</button>
+          <button class="filter-btn" onclick="toggleSovFilter('cloud-act')"><span class="dot" style="background:var(--bordeaux)"></span>CLOUD Act</button>
+        </div>
+      </div>
+      <div class="section">
+        <div class="section-label">Market by Province</div>
+        <div class="chart-container"><canvas id="chart-province-sites"></canvas></div>
+        <div class="chart-container"><canvas id="chart-province-mw"></canvas></div>
+      </div>
+      <div class="section">
+        <div class="section-label">Market Snapshot</div>
+        <div class="site-card" style="cursor:default">
+          <div class="site-detail">
+            <strong>Installed Capacity:</strong> 1.4 GW across 117 facilities<sup class="ref" title="CBRE Canada DC Market H2 2025">12</sup><br>
+            <strong>Pipeline:</strong> 10+ GW announced (29-34% AI DC CAGR)<sup class="ref" title="Cushman & Wakefield Canada DC 2025">3</sup><br>
+            <strong>Revenue:</strong> US$5.44B (2025E) → US$12.27B by 2030 (14.5% CAGR)<sup class="ref" title="Mordor Intelligence Canada DC Market 2025">13</sup><br>
+            <strong>2025 Transactions:</strong> 113 deals, US$69B (record year)<sup class="ref" title="Synergy Research Group Q4 2025">14</sup><br>
+            <strong>DC EBITDA Multiples:</strong> 26x (hyperscale) / 21-22x (colo)<sup class="ref" title="TD Securities DC Valuation Survey, 2025">15</sup>
+          </div>
+        </div>
+      </div>
+      <div class="footnotes">
+        <div class="footnote-title">Sources</div>
+        <div class="fn"><sup>1</sup> <a href="https://www.jll.ca/en/trends-and-insights/research/data-centre-outlook" target="_blank">JLL Canada DC Market Report, Jan 2026</a></div>
+        <div class="fn"><sup>2</sup> <a href="https://bfranceinvestor.bfranceinc.com/news-releases" target="_blank">BCE Investor Day, Oct 2025</a></div>
+        <div class="fn"><sup>3</sup> Cushman & Wakefield / CBRE Canada DC Outlook 2025</div>
+        <div class="fn"><sup>4</sup> <a href="https://www.bchydro.com/accounts-billing/rates-energy-use/electricity-rates/business-rates.html" target="_blank">BC Hydro Rate Schedule 1823</a></div>
+        <div class="fn"><sup>12</sup> CBRE Canada DC Market H2 2025</div>
+        <div class="fn"><sup>13</sup> <a href="https://www.mordorintelligence.com/industry-reports/canada-data-center-market" target="_blank">Mordor Intelligence — Canada DC Market</a></div>
+        <div class="fn"><sup>14</sup> <a href="https://www.srgresearch.com/" target="_blank">Synergy Research Group</a></div>
+        <div class="fn"><sup>15</sup> TD Securities DC Valuation Survey — Market Intel / Chatter</div>
+      </div>
+    </div>
+
+    <!-- ═══ TAB: BCE AI FABRIC ═══ -->
+    <div class="tab-panel" id="tab-bce">
+      <div class="section">
+        <div class="section-label">Bell AI Fabric</div>
+        <div class="callout red">
+          <div class="callout-title">Sovereign AI Managed Service Provider</div>
+          <div class="callout-text">
+            Capital-light model: BCE owns power + real estate + fiber. Partners (Groq, BUZZ HPC, Hypertec) capitalize GPU hardware on their own balance sheets.
+            <em>C$300M own capex vs Microsoft's C$19B Canada spend.</em><sup class="ref" title="BCE Investor Day Oct 2025; Microsoft Canada announcement Dec 2024">2,16</sup>
+          </div>
+        </div>
+        <div class="stat-grid">
+          <div class="stat-card red"><div class="stat-value red mono">C$400M</div><div class="stat-label">DC Revenue Target 2028<sup class="ref" title="BCE Investor Day Oct 2025">2</sup></div></div>
+          <div class="stat-card bronze"><div class="stat-value bronze mono">C$300M</div><div class="stat-label">Own Capex (Total)<sup class="ref" title="BCE Investor Day Oct 2025">2</sup></div></div>
+          <div class="stat-card sage"><div class="stat-value sage mono">20%+</div><div class="stat-label">Implied ROIC<sup class="ref" title="BCE Investor Day Oct 2025">2</sup></div></div>
+          <div class="stat-card"><div class="stat-value lagoon mono">C$1.5B</div><div class="stat-label">AI Revenue Target 2028<sup class="ref" title="BCE Investor Day Oct 2025">2</sup></div></div>
+        </div>
+        <div class="ceo-quote mt-8">
+          "Our returns are actually better if you don't invest in [GPU chips]."
+          <div class="attr">— Curtis Millen, CFO, BCE (Investor Day Oct 2025)<sup class="ref">2</sup></div>
+        </div>
+      </div>
+
+      <div class="section">
+        <div class="section-label">Site Registry</div>
+        <div id="bce-sites-list"></div>
+      </div>
+
+      <div class="section">
+        <div class="section-label">Partnership Ecosystem</div>
+        <div class="site-card" style="cursor:default">
+          <div class="site-detail">
+            <strong>Groq</strong> — Exclusive LPU inference provider (May 2025)<sup class="ref" title="BCE press release May 2025">17</sup><br>
+            <strong>Cohere</strong> — Preferred LLM + agentic AI (Jul 2025)<sup class="ref" title="BCE press release Jul 2025">18</sup><br>
+            <strong>Hypertec</strong> — Canadian-built NVIDIA GPU systems (Feb 2026)<sup class="ref" title="BCE press release Feb 2026">19</sup><br>
+            <strong>BUZZ HPC / HIVE</strong> — NVIDIA GPU clusters, Manitoba (Aug 2025)<sup class="ref" title="HIVE Digital Q3 2025 filing">20</sup><br>
+            <strong>SAP Canada</strong> — Sovereign Cloud On-Site MoU (Feb 2026)<sup class="ref" title="SAP Canada announcement Feb 2026">21</sup><br>
+            <strong>Coveo</strong> — AI-Relevance for government (Mar 2026)<sup class="ref" title="Coveo press release Mar 2026">22</sup>
+          </div>
+        </div>
+      </div>
+
+      <div class="section">
+        <div class="section-label">Build Timeline</div>
+        <div class="timeline" id="bce-timeline"></div>
+      </div>
+
+      <div class="section">
+        <div class="section-label">IPO / Spinoff Scenario Analysis</div>
+        <div class="callout">
+          <div class="callout-title">Multiple Arbitrage Opportunity</div>
+          <div class="callout-text">Telco at 6-7x EBITDA, but DC/AI assets could command 20-28x if spun or IPO'd<sup class="ref" title="Market Intel / Chatter — MetroConnect 2026">MC</sup></div>
+        </div>
+        <div id="ipo-scenarios"></div>
+      </div>
+
+      <div class="section">
+        <div class="section-label">Deal Context</div>
+        <div class="callout">
+          <div class="callout-title">3-Way Deal Structure</div>
+          <div class="callout-text">
+            BCE (power) + proven developer + Oak Hill (capital). ~C$4B transaction, 85% project finance, ~C$300M equity.
+            Go through Adam (Oak Hill), not Scott. Richard Clark (GoNetSpeed) pitch.<sup class="ref" title="Market Intel / Chatter — MetroConnect 2026">MC</sup>
+          </div>
+        </div>
+      </div>
+
+      <div class="footnotes">
+        <div class="footnote-title">Sources</div>
+        <div class="fn"><sup>16</sup> <a href="https://news.microsoft.com/en-ca/" target="_blank">Microsoft Canada — C$19B investment announcement, Dec 2024</a></div>
+        <div class="fn"><sup>17</sup> BCE press release — Groq partnership, May 2025</div>
+        <div class="fn"><sup>18</sup> BCE press release — Cohere partnership, Jul 2025</div>
+        <div class="fn"><sup>19</sup> BCE press release — Hypertec partnership, Feb 2026</div>
+        <div class="fn"><sup>20</sup> HIVE Digital Technologies Q3 2025 quarterly filing</div>
+        <div class="fn"><sup>21</sup> SAP Canada — Sovereign Cloud MoU, Feb 2026</div>
+        <div class="fn"><sup>22</sup> Coveo press release — BCE partnership, Mar 2026</div>
+        <div class="fn"><sup>MC</sup> Market Intel / Chatter</div>
+      </div>
+    </div>
+
+    <!-- ═══ TAB: COMPETITIVE LANDSCAPE ═══ -->
+    <div class="tab-panel" id="tab-landscape">
+      <div class="section">
+        <div class="section-label">Canadian DC Operators — Threat Assessment</div>
+        <div style="font-size:9px;color:var(--text-muted);margin-bottom:8px">Click any operator for recent news & permits</div>
+        <div id="competitor-list"></div>
+      </div>
+      <div class="section">
+        <div class="section-label">Hyperscaler Commitments</div>
+        <div id="hyperscaler-list"></div>
+      </div>
+      <div class="section">
+        <div class="section-label">BCE Genuine Advantages</div>
+        <div class="site-card" style="cursor:default">
+          <div class="site-detail" style="line-height:1.7">
+            &#x2713; Structural CLOUD Act immunity (Canadian ownership)<br>
+            &#x2713; Cohere = Canadian AI model layer (TELUS lacks)<br>
+            &#x2713; Hypertec = Canadian GPU manufacturing (unique)<br>
+            &#x2713; 500MW BC supercluster = ~35% of BC Hydro pool<br>
+            &#x2713; National footprint: BC + MB + SK + ON<br>
+            &#x2713; BC Hydro at 3.7¢ USD/kWh — lowest in NA<sup class="ref">4</sup>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══ TAB: POWER & PERMITS ═══ -->
+    <div class="tab-panel" id="tab-power">
+      <div class="section">
+        <div class="section-label">Provincial Power Rates (USD/kWh)</div>
+        <div id="power-chart"></div>
+      </div>
+      <div class="section">
+        <div class="section-label">Key Regulatory Developments</div>
+        <div class="callout red">
+          <div class="callout-title">Hydro-Québec Rate Shock — Datacenter Surcharge</div>
+          <div class="callout-text">
+            <strong>New DC rate: 13¢ CAD/kWh</strong> (~9.6¢ USD) for DCs >5MW — approximately 2x the current Rate L (~6-6.5¢ CAD). Crypto/blockchain: 19.5¢ CAD/kWh (~3x). Filed by Hydro-Québec to Régie de l'énergie on <strong>Feb 19, 2026</strong>, following Jan 28 Orders in Council. 5-year phase-in for existing DCs; 3-year for crypto. Bill 69 (sanctioned Jun 7, 2025) requires Ministerial approval for any customer >5MW.<sup class="ref" title="Hydro-Québec press release Feb 19, 2026; Régie Dossier R-4270-2024; Bill 69">23</sup>
+          </div>
+        </div>
+        <div class="callout">
+          <div class="callout-title">BC Regulation 8/2026 — Competitive DC Allocation</div>
+          <div class="callout-text">
+            Effective Feb 1, 2026. <strong>Years 1-2:</strong> 300MW for AI DCs + 100MW conventional (per-project cap: 145MW). <strong>Years 3-4:</strong> 150MW AI + 50MW conventional. Crypto mining permanently banned. Assessment includes data sovereignty criterion (jurisdiction of incorporation, data safeguard protocols). Must demonstrate curtailment capability and community benefit. BCE targeting ~35% of Year 1-2 pool.<sup class="ref" title="BC Laws Regulation 8/2026; BC Gov press release">24</sup>
+          </div>
+        </div>
+        <div class="callout">
+          <div class="callout-title">Federal Sovereign Compute Program</div>
+          <div class="callout-text">
+            C$926M allocated. 100MW minimum threshold. Deadline closed Feb 15, 2026.
+            BCE applied via Queen's University (ON-1) and likely SK-1.<sup class="ref" title="Budget 2024 Chapter 6">7</sup>
+          </div>
+        </div>
+      </div>
+      <div class="section">
+        <div class="section-label">Provincial Regulatory Stance</div>
+        <div id="reg-stance-list"></div>
+      </div>
+      <div class="footnotes">
+        <div class="footnote-title">Sources</div>
+        <div class="fn"><sup>23</sup> <a href="https://news.hydroquebec.com/news/press-releases/all-quebec/hydro-quebec-proposing-regie-energie-new-rate-large-data-centres-adjustment-rate-cryptographic-use-applied-blockchains.html" target="_blank">Hydro-Québec press release, Feb 19 2026</a> | <a href="https://www.regie-energie.qc.ca/fr/participants/dossiers/R-4270-2024" target="_blank">Régie Dossier R-4270-2024</a> | <a href="https://stikeman.com/en-ca/kh/canadian-energy-law/quebec-government-adopts-bill-69-to-modernize-energy-legislation" target="_blank">Stikeman Elliott: Bill 69 analysis</a></div>
+        <div class="fn"><sup>24</sup> <a href="https://www.bclaws.gov.bc.ca/civix/document/id/complete/statreg/8_2026" target="_blank">BC Laws — Regulation 8/2026</a> | <a href="https://news.gov.bc.ca/releases/2025ECS0044-001032" target="_blank">BC Gov press release</a> | <a href="https://www.bchydro.com/energy-in-bc/acquiring_power/current-offerings.html" target="_blank">BC Hydro Pool</a></div>
+      </div>
+    </div>
+
+    <!-- ═══ TAB: POWER QUEUE ═══ -->
+    <div class="tab-panel" id="tab-queue">
+      <div class="section">
+        <div class="section-label">Power Queue — Datacenter Filings by Province</div>
+        <div style="font-size:9px;color:var(--text-muted);margin-bottom:8px">All known DC power applications, interconnection requests, and capacity allocations. Ultimate ownership shown where known.</div>
+      </div>
+      <div class="section">
+        <div class="section-label">Alberta — AESO Queue</div>
+        <div id="queue-alberta"></div>
+      </div>
+      <div class="section">
+        <div class="section-label">British Columbia — BC Hydro</div>
+        <div id="queue-bc"></div>
+      </div>
+      <div class="section">
+        <div class="section-label">Quebec — Hydro-Québec</div>
+        <div id="queue-quebec"></div>
+      </div>
+      <div class="section">
+        <div class="section-label">Ontario — IESO</div>
+        <div id="queue-ontario"></div>
+      </div>
+      <div class="section">
+        <div class="section-label">Saskatchewan — SaskPower</div>
+        <div id="queue-sask"></div>
+      </div>
+      <div class="section">
+        <div class="section-label">New Brunswick — NB Power</div>
+        <div id="queue-nb"></div>
+      </div>
+      <div class="footnotes" id="queue-footnotes"></div>
+    </div>
+
+    <!-- ═══ TAB: MARKETS ═══ -->
+    <div class="tab-panel" id="tab-markets">
+      <div class="section">
+        <div class="section-label">Key Metro Markets — Zoom</div>
+        <div style="font-size:9px;color:var(--text-muted);margin-bottom:8px">Each map shows all known DC sites in the metro area with operator icons scaled by capacity.</div>
+      </div>
+      <div id="metro-maps"></div>
+    </div>
+
+    <!-- ═══ TAB: INVESTOR UNIVERSE ═══ -->
+    <div class="tab-panel" id="tab-investors">
+      <div class="section">
+        <div class="section-label">DC Yield Vehicle Universe</div>
+        <div id="investor-content"></div>
+      </div>
+      <div class="footnotes" id="investor-footnotes"></div>
+    </div>
+
+  </div>
+</div>
+
+<!-- Sidebar toggle -->
+<button class="sidebar-toggle" id="sidebarToggle" onclick="toggleSidebar()">
+  <svg viewBox="0 0 24 24"><path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z"/></svg>
+</button>
+
+<!-- Map -->
+<div id="map"></div>
+</div>
+
+<!-- News Modal -->
+<div class="news-modal" id="newsModal">
+  <div class="news-modal-content">
+    <div class="news-modal-header">
+      <h3 id="newsModalTitle">Operator News</h3>
+      <button class="news-modal-close" onclick="closeNewsModal()">&times;</button>
+    </div>
+    <div class="news-modal-body" id="newsModalBody"></div>
+  </div>
+</div>
+
+<script>
+/* ═══════════════════════════════════════════════════════
+   PASSWORD GATE
+   ═══════════════════════════════════════════════════════ */
+function checkPassword() {
+  const pw = document.getElementById('gate-pw').value;
+  if (pw === '2026') {
+    document.getElementById('password-gate').classList.add('hidden');
+    document.getElementById('main-app').classList.remove('hidden');
+    setTimeout(() => map.invalidateSize(), 100);
+  } else {
+    document.getElementById('gate-pw').classList.add('error');
+    setTimeout(() => document.getElementById('gate-pw').classList.remove('error'), 500);
+  }
+}
+document.getElementById('gate-pw').addEventListener('keydown', e => { if (e.key === 'Enter') checkPassword(); });
+
+
+/* ═══════════════════════════════════════════════════════
+   DATA LAYER
+   ═══════════════════════════════════════════════════════ */
+
+const OPERATOR_COLORS = {
+  'BCE': '#E60000', 'TELUS': '#469A6C', 'QScale': '#00759E',
+  'eStruxture': '#B98E2C', 'IREN': '#4972AC', 'Cologix': '#45999C',
+  'Vantage': '#879420', 'Microsoft': '#0C7EC6', 'AWS': '#E4A911',
+  'Google': '#BD000C', 'Meta': '#1877F2', 'Oracle': '#F80000',
+  'Equinix': '#ED1C24', 'Digital Realty': '#0066B3', 'OVHcloud': '#123456'
+};
+
+const STATUS_MAP = {
+  'OPERATIONAL': { cls: 'operational', label: 'Operational', color: '#469A6C' },
+  'UNDER CONSTRUCTION': { cls: 'construction', label: 'Under Construction', color: '#E4A911' },
+  'PLANNED': { cls: 'planned', label: 'Planned', color: '#00759E' },
+  'ADVANCED PLANNING': { cls: 'advanced', label: 'Advanced Planning', color: '#4972AC' },
+  'PRE-PERMIT': { cls: 'pre-permit', label: 'Pre-Permit', color: '#B98E2C' },
+  'MOU STAGE': { cls: 'mou', label: 'MOU Stage', color: '#8E8D83' },
+  'EXPANDING': { cls: 'expanding', label: 'Expanding', color: '#E4A911' }
+};
+
+const BCE_SITES = [
+  { id:'BC-1', name:'Kamloops (Mission Flats)', lat:50.6745, lng:-120.3273, mw:7, status:'OPERATIONAL', online:'June 2025', power:'BC Hydro', rate:'3.7¢', tenant:'Groq (LPU inference)', notes:'First Bell AI Fabric site; 2 units × 83 data nodes', province:'BC', source:'BCE press release May 2025' },
+  { id:'BC-2', name:'Merritt (Airport adj.)', lat:50.1129, lng:-120.7862, mw:7, status:'UNDER CONSTRUCTION', online:'March 2026', power:'BC Hydro', rate:'3.7¢', tenant:'TBD', notes:'5-acre site; closed-loop water cooling', province:'BC', source:'BCE Q4 2025 earnings call' },
+  { id:'BC-3', name:'TRU Kamloops', lat:50.6680, lng:-120.3600, mw:26, status:'PLANNED', online:'End 2026', power:'BC Hydro', rate:'3.7¢', tenant:'Bell/TRU academic', notes:'Provisional approval; district energy system', province:'BC', source:'BCE Investor Day Oct 2025' },
+  { id:'BC-4', name:'TRU Kamloops (Phase 2)', lat:50.6700, lng:-120.3550, mw:26, status:'PLANNED', online:'2027', power:'BC Hydro', rate:'3.7¢', tenant:'Bell/TRU', notes:'Second TRU facility', province:'BC', source:'BCE Investor Day Oct 2025' },
+  { id:'BC-5', name:'TBD (British Columbia)', lat:50.50, lng:-121.10, mw:200, status:'ADVANCED PLANNING', online:'TBD', power:'BC Hydro', rate:'3.7¢', tenant:'TBD', notes:'Large-format site; part of 400MW+ BC pipeline', province:'BC', source:'BCE Investor Day Oct 2025' },
+  { id:'BC-6', name:'TBD (British Columbia)', lat:50.30, lng:-121.50, mw:200, status:'ADVANCED PLANNING', online:'TBD', power:'BC Hydro', rate:'3.7¢', tenant:'TBD', notes:'Second large-format site', province:'BC', source:'BCE Investor Day Oct 2025' },
+  { id:'MB-1', name:'Manitoba', lat:49.8951, lng:-97.1384, mw:5, status:'PLANNED', online:'Late 2025', power:'Manitoba Hydro', rate:'4.1¢', tenant:'BUZZ HPC (HIVE Digital)', notes:'NVIDIA Ampere/Hopper/Blackwell; 504 GPUs, $15M ARR', province:'MB', source:'HIVE Digital Q3 2025 filing' },
+  { id:'SK-1', name:'Regina (RM Sherwood No. 159)', lat:50.4045, lng:-104.5868, mw:300, status:'PRE-PERMIT', online:'Phase 1: H1 2027', power:'SaskPower + on-site gas gen', rate:'6.7¢', tenant:'CoreWeave + Cerebras Systems', notes:'160 acres, 501K sqft. $1.7B construction / $12B economic impact. Phase 1: ~50MW. Full build: 300MW by end 2027. 800 construction + 80 permanent jobs. George Gordon First Nation partnership.', province:'SK', source:'BCE press release Mar 16, 2026; CBC; BNN Bloomberg' },
+  { id:'ON-1', name:'Kingston (Queen\'s University)', lat:44.2312, lng:-76.4860, mw:null, status:'MOU STAGE', online:'TBD', power:'IESO', rate:'8.1¢', tenant:'Bell + Queen\'s', notes:'Sovereign AI supercomputer; C$926M federal program', province:'ON', source:'Queen\'s University press release Dec 2025' }
+];
+
+const COMPETITORS = [
+  { operator:'TELUS', site:'Rimouski Sovereign AI Factory', lat:48.4489, lng:-68.5239, mw:null, status:'OPERATIONAL', province:'QC', sovereign:true, threat:'HIGH', notes:'First Canadian sovereign AI factory; NVIDIA + HPE + OpenText. 6+ months ahead of BCE in sovereign narrative.', partners:'NVIDIA, HPE, OpenText', source:'TELUS press release, 2025' },
+  { operator:'QScale', site:'Lévis, QC', lat:46.7362, lng:-71.2555, mw:142, status:'OPERATIONAL', province:'QC', sovereign:true, threat:'HIGH', notes:'Legacy 4.5¢/kWh rate — locked in before Hydro-QC rate shock. Purpose-built for AI inference.', partners:'HPE (anchor), Together AI (36K GB200 GPUs)', source:'QScale press release; Together AI announcement 2025' },
+  { operator:'eStruxture', site:'Montreal (HQ)', lat:45.5100, lng:-73.5700, mw:130, status:'OPERATIONAL', province:'QC', sovereign:true, threat:'MEDIUM-HIGH', notes:'16 sites nationwide. First Canadian DC ABS (C$1.35B, Jul 2025). Part of sovereign AI consortium w/ Hypertec.', partners:'Hypertec, ThinkOn, Aptum', source:'eStruxture press release Jul 2025' },
+  { operator:'IREN', site:'British Columbia', lat:50.7000, lng:-120.4000, mw:160, status:'OPERATIONAL', province:'BC', sovereign:false, threat:'HIGH in BC', notes:'NASDAQ-listed = CLOUD Act exposed. 23,000 active GPUs. Already operational in BC with 160MW — ahead of BCE.', partners:'NVIDIA', source:'IREN Ltd 10-K, 2025' },
+  { operator:'Cologix', site:'Montreal', lat:45.5017, lng:-73.5673, mw:94, status:'OPERATIONAL', province:'QC', sovereign:false, threat:'MEDIUM', notes:'23 Canadian sites total. Stonepeak-owned (US PE). CLOUD Act exposed.', partners:'Stonepeak', source:'Cologix website' },
+  { operator:'Cologix', site:'Toronto', lat:43.6400, lng:-79.4100, mw:null, status:'OPERATIONAL', province:'ON', sovereign:false, threat:'MEDIUM', notes:'Part of 23-site Canadian footprint.', partners:'Stonepeak', source:'Cologix website' },
+  { operator:'Cologix', site:'Vancouver', lat:49.2827, lng:-123.1207, mw:null, status:'OPERATIONAL', province:'BC', sovereign:false, threat:'MEDIUM', notes:'Part of 23-site Canadian footprint.', partners:'Stonepeak', source:'Cologix website' },
+  { operator:'Vantage', site:'Quebec', lat:46.85, lng:-71.25, mw:178, status:'EXPANDING', province:'QC', sovereign:false, threat:'MEDIUM', notes:'C$2.5B total investment. DigitalBridge-owned (US). CLOUD Act exposed.', partners:'DigitalBridge', source:'Vantage Data Centers press release 2025' },
+  { operator:'Meta', site:'Alberta (Beacon AI site)', lat:51.10, lng:-114.15, mw:400, status:'PLANNED', province:'AB', sovereign:false, threat:'HIGH', notes:'Acquired power queue position from Beacon AI. 400MW target. AESO interconnection in progress.', partners:'', source:'Market Intel / Chatter; AESO queue filings' },
+  { operator:'Microsoft', site:'Toronto Region', lat:43.70, lng:-79.42, mw:null, status:'EXPANDING', province:'ON', sovereign:false, threat:'HIGH', notes:'C$7.5B near-term (C$19B total). Vastly outscales all Canadian operators. CLOUD Act exposed.', partners:'', source:'Microsoft Canada press release Dec 2024' },
+  { operator:'Microsoft', site:'Quebec City', lat:46.85, lng:-71.30, mw:null, status:'EXPANDING', province:'QC', sovereign:false, threat:'HIGH', notes:'Part of C$19B Canada commitment. CLOUD Act exposed.', partners:'', source:'Microsoft Canada press release Dec 2024' },
+  { operator:'AWS', site:'Montreal Region', lat:45.52, lng:-73.61, mw:null, status:'OPERATIONAL', province:'QC', sovereign:false, threat:'HIGH', notes:'C$24.8B through 2037. Largest single foreign DC commitment in Canada.', partners:'Cerebras (inference, Mar 2026)', source:'AWS press release Jan 2025' },
+  { operator:'AWS', site:'Calgary (New Region)', lat:51.05, lng:-114.07, mw:null, status:'PLANNED', province:'AB', sovereign:false, threat:'HIGH', notes:'New Alberta region. Part of C$24.8B commitment. CLOUD Act exposed.', partners:'', source:'AWS press release Oct 2025' },
+  { operator:'Google', site:'Montreal', lat:45.49, lng:-73.55, mw:null, status:'OPERATIONAL', province:'QC', sovereign:false, threat:'MEDIUM-HIGH', notes:'CLOUD Act exposed. Investment not publicly disclosed.', partners:'', source:'Google Cloud blog' },
+  { operator:'Google', site:'Toronto', lat:43.64, lng:-79.37, mw:null, status:'OPERATIONAL', province:'ON', sovereign:false, threat:'MEDIUM-HIGH', notes:'CLOUD Act exposed.', partners:'', source:'Google Cloud blog' },
+  { operator:'Oracle', site:'Toronto', lat:43.66, lng:-79.38, mw:null, status:'OPERATIONAL', province:'ON', sovereign:false, threat:'MEDIUM', notes:'OCI Canada region (Toronto). CLOUD Act exposed.', partners:'', source:'Oracle Cloud Infrastructure website' },
+  { operator:'Oracle', site:'Montreal', lat:45.50, lng:-73.57, mw:null, status:'OPERATIONAL', province:'QC', sovereign:false, threat:'MEDIUM', notes:'OCI Canada (Montreal). CLOUD Act exposed.', partners:'', source:'Oracle Cloud Infrastructure website' },
+  { operator:'Equinix', site:'Toronto', lat:43.65, lng:-79.40, mw:null, status:'OPERATIONAL', province:'ON', sovereign:false, threat:'MEDIUM', notes:'3 Toronto DCs (TR1-TR3). Interconnection hub. CLOUD Act exposed.', partners:'', source:'Equinix website' },
+  { operator:'Digital Realty', site:'Toronto', lat:43.63, lng:-79.43, mw:null, status:'OPERATIONAL', province:'ON', sovereign:false, threat:'MEDIUM', notes:'Multiple Toronto facilities. CLOUD Act exposed.', partners:'', source:'Digital Realty website' }
+];
+
+const PROVINCE_POWER = [
+  { code:'BC', name:'British Columbia', rate:0.037, source:'BC Hydro Rate Sched. 1823', color:'#469A6C', note:'Lowest major NA hydro. 400MW pool open.' },
+  { code:'MB', name:'Manitoba', rate:0.041, source:'Manitoba Hydro', color:'#469A6C', note:'Clean hydro. Low cost.' },
+  { code:'QC-L', name:'Quebec (Legacy)', rate:0.048, source:'Hydro-QC Schedule L (pre-2026)', color:'#6F7A1A', note:'Existing facilities. 5-yr phase-in.' },
+  { code:'AB', name:'Alberta', rate:0.059, source:'AESO pool price avg 2025', color:'#E4A911', note:'Deregulated market. Volatile.' },
+  { code:'SK', name:'Saskatchewan', rate:0.067, source:'SaskPower commercial rate', color:'#E4A911', note:'BCE SK-1 campus.' },
+  { code:'TX', name:'Texas (ERCOT) ★', rate:0.075, source:'ERCOT avg wholesale 2025', color:'#B98E2C', note:'US benchmark comparison.' },
+  { code:'ON', name:'Ontario', rate:0.081, source:'IESO industrial rate', color:'#BD000C', note:'Toronto = major DC hub.' },
+  { code:'VA', name:'Virginia ★', rate:0.090, source:'Dominion Energy Schedule GS-3', color:'#BD000C', note:'US benchmark — Data Center Alley.' },
+  { code:'QC-N', name:'Quebec (New DC Rate)', rate:0.096, source:'Hydro-QC new tariff (H2 2026)', color:'#E60000', note:'RATE SHOCK: ~2x prior. Effective H2 2026.' },
+  { code:'NS', name:'Nova Scotia', rate:0.111, source:'Nova Scotia Power', color:'#E60000', note:'Highest in mainland Canada.' }
+];
+
+const PROVINCE_GEO_MAP = {
+  'British Columbia':'BC', 'Alberta':'AB', 'Saskatchewan':'SK', 'Manitoba':'MB',
+  'Ontario':'ON', 'Quebec':'QC', 'Québec':'QC', 'New Brunswick':'NB',
+  'Nova Scotia':'NS', 'Prince Edward Island':'PE', 'Newfoundland and Labrador':'NL',
+  'Yukon':'YT', 'Yukon Territory':'YT', 'Northwest Territories':'NT', 'Nunavut':'NU'
+};
+
+const PROVINCE_DATA = {
+  BC: { rate:0.037, activity:'HIGH', fill:'rgba(70,154,108,0.20)', reg:'RESTRICTIVE / Competitive Allocation. Regulation 8/2026 (eff. Feb 1, 2026): 300MW AI + 100MW conventional in Years 1-2 (cap: 145MW/project). Crypto permanently banned. Data sovereignty criterion in scoring. DCs must show curtailment capability.' },
+  AB: { rate:0.059, activity:'HIGH', fill:'rgba(228,169,17,0.12)', reg:'WELCOMING / Self-Supply. Bill 8 (Royal Assent Dec 11, 2025): DCs that bring own power get fast-tracked. DCs pay for transmission upgrades. AESO interim cap of 1,200MW large load through 2028. Federal-provincial MoU on AI DCs in place.' },
+  SK: { rate:0.067, activity:'HIGH', fill:'rgba(228,169,17,0.08)', reg:'VERY WELCOMING / Active Recruitment. BCE 300MW/$1.7B campus anchors province. Building new transmission (200MW Phase 1 by end 2026, +100MW Phase 2 by end 2027). Extending coal generation for baseload. George Gordon First Nation partnership.' },
+  MB: { rate:0.041, activity:'EMERGING', fill:'rgba(70,154,108,0.14)', reg:'NEUTRAL. No DC-specific policy. Manitoba Hydro IRP warns new supply needed by 2030. General industrial demand-response programs ($60/kW curtailable loads). Abundant hydro but no DC recruitment framework yet.' },
+  ON: { rate:0.081, activity:'HIGH', fill:'rgba(189,0,12,0.10)', reg:'CONTROLLED / Ministerial Gatekeeping. Bill 40 (Royal Assent Dec 11, 2025): Minister can prioritize/approve DC connections based on economic benefit. IESO expects 16 new DCs in 10 years (13% of new demand). GTA transmission constrained.' },
+  QC: { rate:0.096, activity:'HIGH', fill:'rgba(189,0,12,0.15)', reg:'RESTRICTIVE / Price Deterrence. Hydro-QC proposed 13¢ CAD/kWh for DCs >5MW (~2x current Rate L). 19.5¢ for crypto. Filed Feb 19, 2026. Bill 69 requires Ministerial approval for >5MW. 5-year phase-in for existing. Legacy operators (QScale) grandfathered at old rate.' },
+  NB: { rate:0.081, activity:'EMERGING', fill:'rgba(142,141,131,0.08)', reg:'CAUTIOUS. NB Power obligated to serve industrial, but seeking "flexibility" from DCs on consumption. Crypto exempted from obligation to serve. 190MW DC project proposed in Lorneville (Saint John). 4.75% rate increase requested for 2026/27.' },
+  NS: { rate:0.111, activity:'LOW', fill:'rgba(189,0,12,0.08)', reg:'Challenging. Highest mainland power costs. Limited DC activity.' },
+  PE: { rate:0.126, activity:'NONE', fill:'rgba(142,141,131,0.04)', reg:'No significant DC activity.' },
+  NL: { rate:0.096, activity:'NONE', fill:'rgba(142,141,131,0.05)', reg:'Muskrat Falls surplus could attract DC long-term. No current activity.' },
+  YT: { rate:0.104, activity:'NONE', fill:'rgba(142,141,131,0.03)', reg:'No DC activity.' },
+  NT: { rate:0.222, activity:'NONE', fill:'rgba(142,141,131,0.02)', reg:'No DC activity. Prohibitive power costs.' },
+  NU: { rate:0.815, activity:'NONE', fill:'rgba(142,141,131,0.01)', reg:'No DC activity.' }
+};
+
+const IPO_SCENARIOS = [
+  { name:'Traditional Colo (DLR floor)', multiple:'20x EBITDA', ev_low:'C$2.0B', ev_high:'C$3.0B', rationale:'BCE DC treated as standard colocation', source:'DLR trading comps' },
+  { name:'Premium Colo (Equinix)', multiple:'25x EBITDA', ev_low:'C$2.5B', ev_high:'C$3.75B', rationale:'Interconnection + managed services premium', source:'EQIX trading comps' },
+  { name:'AI Infra (CoreWeave-lite)', multiple:'12-15x Rev', ev_low:'C$4.8B', ev_high:'C$6.0B', rationale:'Revenue multiple if treated as AI growth play', source:'CRWV IPO comps, Mar 2025' },
+  { name:'Sovereign Premium', multiple:'30x EBITDA', ev_low:'C$3.0B', ev_high:'C$4.5B', rationale:'Government mandate creates pricing power', source:'Market Intel / Chatter' }
+];
+
+const TIMELINE_EVENTS = [
+  { date:'May 2025', text:'AI Fabric Launch — 500MW BC supercluster + Groq exclusive', cls:'live' },
+  { date:'Jun 2025', text:'BC-1 LIVE (7MW) — Kamloops, Mission Flats', cls:'live' },
+  { date:'Jul 2025', text:'Cohere partnership — preferred LLM + agentic AI', cls:'' },
+  { date:'Aug 2025', text:'Ziply Fiber acquisition closes + BUZZ HPC deal', cls:'' },
+  { date:'Oct 2025', text:'Investor Day: C$1.5B AI revenue target, 20%+ ROIC', cls:'' },
+  { date:'Dec 2025', text:'Queen\'s University MOU (ON-1) + NVIDIA/Groq deal', cls:'' },
+  { date:'Jan 2026', text:'BC Hydro 400MW pool opens + 73MW confirmed operational', cls:'building' },
+  { date:'Feb 2026', text:'SK-1 rezoning + Hypertec + SAP partnerships', cls:'building' },
+  { date:'Mar 2026', text:'BC-2 Target Go-Live (7MW) — Merritt + Coveo partnership', cls:'building' },
+  { date:'End 2026', text:'BC-3 Target (26MW) — TRU Kamloops', cls:'' },
+  { date:'Sept 2026', text:'BC Hydro pool winners announced (400MW)', cls:'' },
+  { date:'2027', text:'BC-4 Target (26MW) — TRU Kamloops Phase 2', cls:'' },
+  { date:'2028', text:'C$400M DC revenue target / C$1.5B total AI', cls:'' }
+];
+
+const METRO_AREAS = [
+  { name:'Montreal / Quebec', center:[45.52, -73.58], zoom:10, provinces:['QC'] },
+  { name:'Toronto / Ontario', center:[43.65, -79.40], zoom:10, provinces:['ON'] },
+  { name:'BC Interior (Kamloops-Merritt)', center:[50.40, -120.50], zoom:9, provinces:['BC'] },
+  { name:'Calgary / Alberta', center:[51.05, -114.07], zoom:10, provinces:['AB'] },
+  { name:'Vancouver', center:[49.28, -123.12], zoom:11, provinces:['BC'] },
+  { name:'Regina / Saskatchewan', center:[50.45, -104.60], zoom:10, provinces:['SK'] },
+  { name:'Winnipeg / Manitoba', center:[49.90, -97.14], zoom:10, provinces:['MB'] }
+];
+
+// Operator news database — populated with known public information
+const OPERATOR_NEWS = {
+  'BCE': [
+    { date:'Mar 2026', headline:'Coveo AI partnership for government search relevance', source:'BCE press release', url:'' },
+    { date:'Feb 2026', headline:'SK-1 Regina rezoning filed — 160 acres, 501K sqft', source:'RM Sherwood filings', url:'' },
+    { date:'Feb 2026', headline:'Hypertec Canadian GPU manufacturing partnership', source:'BCE press release', url:'' },
+    { date:'Jan 2026', headline:'BC Hydro 400MW pool opens — BCE applying for ~35%', source:'BC Hydro / BCE', url:'' },
+    { date:'Oct 2025', headline:'Investor Day: C$1.5B AI target, 20%+ ROIC on DC', source:'BCE Investor Day', url:'' }
+  ],
+  'TELUS': [
+    { date:'2025', headline:'Rimouski Sovereign AI Factory — first in Canada', source:'TELUS press release', url:'' },
+    { date:'2025', headline:'NVIDIA + HPE + OpenText partnership for sovereign AI', source:'TELUS press release', url:'' }
+  ],
+  'QScale': [
+    { date:'2025', headline:'Together AI deal — 36K NVIDIA GB200 GPUs at Lévis', source:'Together AI press release', url:'' },
+    { date:'2025', headline:'HPE anchor tenant at Lévis QC facility', source:'QScale website', url:'' }
+  ],
+  'eStruxture': [
+    { date:'Jul 2025', headline:'C$1.35B ABS — first Canadian DC securitization', source:'eStruxture press release', url:'' },
+    { date:'2025', headline:'Part of Hypertec/ThinkOn sovereign AI consortium', source:'eStruxture press release', url:'' }
+  ],
+  'IREN': [
+    { date:'2025', headline:'160MW operational in BC — 23,000 active GPUs', source:'IREN 10-K 2025', url:'' }
+  ],
+  'Meta': [
+    { date:'2025-2026', headline:'Acquired Beacon AI power queue position in Alberta (~400MW)', source:'Market Intel / Chatter; AESO queue', url:'' }
+  ]
+};
+
+
+/* ═══════════════════════════════════════════════════════
+   MAP INITIALIZATION
+   ═══════════════════════════════════════════════════════ */
+
+const map = L.map('map', {
+  center: [56, -96], zoom: 4, zoomControl: false,
+  attributionControl: false, minZoom: 3, maxZoom: 14
+});
+
+L.control.zoom({ position: 'topright' }).addTo(map);
+L.control.attribution({ position: 'bottomleft', prefix: false })
+  .addAttribution('MapleDC Intelligence | Sources footnoted per tab')
+  .addTo(map);
+
+// Light map tiles (print-friendly)
+L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+  maxZoom: 19, subdomains: 'abcd'
+}).addTo(map);
+
+const layerGroups = {};
+const allMarkers = [];
+Object.keys(OPERATOR_COLORS).forEach(op => { layerGroups[op] = L.layerGroup().addTo(map); });
+layerGroups['BCE'] = L.layerGroup().addTo(map);
+const provinceLayer = L.layerGroup().addTo(map);
+
+
+/* ═══════════════════════════════════════════════════════
+   DC BUILDING ICON GENERATOR
+   ═══════════════════════════════════════════════════════ */
+
+function getDCIconHTML(mw, color, operator) {
+  // Number of server racks based on MW (more MW = more racks)
+  let racks = 1;
+  let rackH = 12; let rackW = 6;
+  if (mw >= 400) { racks = 5; rackH = 28; rackW = 8; }
+  else if (mw >= 200) { racks = 4; rackH = 24; rackW = 7; }
+  else if (mw >= 100) { racks = 3; rackH = 20; rackW = 7; }
+  else if (mw >= 20) { racks = 2; rackH = 16; rackW = 6; }
+  else if (mw >= 5) { racks = 1; rackH = 14; rackW = 6; }
+  else { racks = 1; rackH = 10; rackW = 5; }
+
+  let html = '<div class="dc-icon"><div class="dc-building">';
+  for (let i = 0; i < racks; i++) {
+    const h = rackH - (i > 0 ? Math.floor(Math.random() * 4) : 0);
+    html += `<div class="dc-rack" style="width:${rackW}px;height:${h}px;color:${color}"></div>`;
+  }
+  html += '</div>';
+  const label = mw ? `${mw}MW` : operator.substring(0,3).toUpperCase();
+  html += `<div class="dc-label">${label}</div></div>`;
+  return html;
+}
+
+
+/* ═══════════════════════════════════════════════════════
+   PROVINCE CHOROPLETH
+   ═══════════════════════════════════════════════════════ */
+
+const GEOJSON_URLS = [
+  'https://raw.githubusercontent.com/codeforamerica/click_that_hood/master/public/data/canada.geojson',
+  'https://raw.githubusercontent.com/codeforgermany/click_that_hood/main/public/data/canada.geojson'
+];
+
+async function loadProvinces() {
+  let data = null;
+  for (const url of GEOJSON_URLS) {
+    try { const resp = await fetch(url); if (resp.ok) { data = await resp.json(); break; } } catch(e) { continue; }
+  }
+  if (!data) return;
+
+  L.geoJSON(data, {
+    style: feature => {
+      const name = feature.properties.name || feature.properties.NAME || '';
+      const code = PROVINCE_GEO_MAP[name];
+      const pd = code ? PROVINCE_DATA[code] : null;
+      return {
+        fillColor: pd ? pd.fill : 'rgba(142,141,131,0.03)',
+        fillOpacity: 1, color: 'rgba(0,0,0,0.08)', weight: 1
+      };
+    },
+    onEachFeature: (feature, layer) => {
+      const name = feature.properties.name || feature.properties.NAME || '';
+      const code = PROVINCE_GEO_MAP[name];
+      const pd = code ? PROVINCE_DATA[code] : null;
+
+      layer.on('mouseover', e => { e.target.setStyle({ weight: 2, color: 'rgba(0,0,0,0.25)' }); });
+      layer.on('mouseout', e => { e.target.setStyle({ weight: 1, color: 'rgba(0,0,0,0.08)' }); });
+
+      if (pd) {
+        const sites = [...BCE_SITES.filter(s => s.province === code), ...COMPETITORS.filter(s => s.province === code)];
+        const totalMW = sites.reduce((sum, s) => sum + (s.mw || 0), 0);
+        layer.bindPopup(`
+          <div class="popup-header">
+            <div class="popup-title">${name}</div>
+            <div class="popup-subtitle">${code} — DC Activity: ${pd.activity}</div>
+          </div>
+          <div class="popup-grid">
+            <div class="popup-cell"><div class="popup-cell-value" style="color:#B98E2C">${(pd.rate * 100).toFixed(1)}¢</div><div class="popup-cell-label">USD/kWh</div></div>
+            <div class="popup-cell"><div class="popup-cell-value" style="color:#00759E">${sites.length}</div><div class="popup-cell-label">Known DC Sites</div></div>
+            <div class="popup-cell"><div class="popup-cell-value" style="color:#469A6C">${totalMW > 0 ? totalMW + ' MW' : 'N/D'}</div><div class="popup-cell-label">Total Capacity</div></div>
+            <div class="popup-cell"><div class="popup-cell-value" style="color:#E60000">${BCE_SITES.filter(s => s.province === code).length}</div><div class="popup-cell-label">BCE Sites</div></div>
+          </div>
+          <div class="popup-reg">
+            <div class="popup-reg-title">Regulatory Environment</div>
+            <div class="popup-reg-text">${pd.reg}</div>
+          </div>
+        `, { maxWidth: 320 });
+      }
+    }
+  }).addTo(provinceLayer);
+}
+loadProvinces();
+
+
+/* ═══════════════════════════════════════════════════════
+   MARKER CREATION
+   ═══════════════════════════════════════════════════════ */
+
+function createMarker(site, operator, color) {
+  const iconHTML = getDCIconHTML(site.mw || 0, color, operator);
+  const totalW = site.mw >= 400 ? 50 : site.mw >= 200 ? 40 : site.mw >= 100 ? 32 : site.mw >= 20 ? 24 : 18;
+  const totalH = site.mw >= 400 ? 40 : site.mw >= 200 ? 34 : site.mw >= 100 ? 28 : site.mw >= 20 ? 22 : 16;
+
+  const icon = L.divIcon({
+    className: '', html: iconHTML,
+    iconSize: [totalW, totalH], iconAnchor: [totalW/2, totalH]
+  });
+
+  const marker = L.marker([site.lat, site.lng], { icon });
+  marker._dcData = { ...site, operator, color };
+  marker.bindPopup(() => buildPopup(site, operator, color), { maxWidth: 320 });
+  allMarkers.push(marker);
+  return marker;
+}
+
+function buildPopup(site, operator, color) {
+  const s = STATUS_MAP[site.status] || STATUS_MAP['PLANNED'];
+  const isBCE = operator === 'BCE';
+  const mwDisplay = site.mw ? `${site.mw} MW` : 'N/D';
+  const pd = PROVINCE_DATA[site.province];
+  const rateDisplay = site.rate || (pd ? (pd.rate * 100).toFixed(1) + '¢' : 'N/D');
+
+  let badges = `<span class="badge ${s.cls}">${s.label}</span>`;
+  if (site.sovereign === true) badges += ' <span class="badge sovereign">SOVEREIGN</span>';
+  if (site.sovereign === false) badges += ' <span class="badge cloud-act">CLOUD ACT</span>';
+  if (site.threat) badges += ` <span class="badge threat-${site.threat === 'HIGH' || site.threat === 'HIGH in BC' ? 'high' : 'med'}">${site.threat}</span>`;
+
+  return `
+    <div class="popup-header">
+      <div class="popup-title" style="color:${color}">${isBCE ? 'BCE ' + site.id : operator}</div>
+      <div class="popup-subtitle">${site.name || site.site}</div>
+    </div>
+    <div class="popup-badges">${badges}</div>
+    <div class="popup-grid">
+      <div class="popup-cell"><div class="popup-cell-value" style="color:${color}">${mwDisplay}</div><div class="popup-cell-label">Capacity</div></div>
+      <div class="popup-cell"><div class="popup-cell-value" style="color:#B98E2C">${rateDisplay}</div><div class="popup-cell-label">Power Rate (USD)</div></div>
+      <div class="popup-cell"><div class="popup-cell-value" style="color:#469A6C">${site.online || '—'}</div><div class="popup-cell-label">Target Online</div></div>
+      <div class="popup-cell"><div class="popup-cell-value" style="color:#00759E">${site.province}</div><div class="popup-cell-label">Province</div></div>
+    </div>
+    ${pd ? `<div class="popup-reg"><div class="popup-reg-title">Regulatory Environment</div><div class="popup-reg-text">${pd.reg}</div></div>` : ''}
+    <div class="popup-footer">
+      ${isBCE && site.tenant ? `<strong>Tenant:</strong> ${site.tenant}<br>` : ''}
+      ${isBCE && site.power ? `<strong>Power:</strong> ${site.power}<br>` : ''}
+      ${site.partners ? `<strong>Partners:</strong> ${site.partners}<br>` : ''}
+      ${site.notes}<br>
+      <em style="font-size:8px;color:#8e8b83">Source: ${site.source || 'Market Intel / Chatter'}</em>
+    </div>
+  `;
+}
+
+// Place markers
+BCE_SITES.forEach(site => { createMarker(site, 'BCE', OPERATOR_COLORS['BCE']).addTo(layerGroups['BCE']); });
+COMPETITORS.forEach(site => {
+  const op = site.operator;
+  if (!layerGroups[op]) layerGroups[op] = L.layerGroup().addTo(map);
+  createMarker(site, op, OPERATOR_COLORS[op] || '#8E8D83').addTo(layerGroups[op]);
+});
+
+
+/* ═══════════════════════════════════════════════════════
+   DYNAMIC CONTENT BUILDERS
+   ═══════════════════════════════════════════════════════ */
+
+// Operator filters
+function buildOperatorFilters() {
+  const container = document.getElementById('operator-filters');
+  const operators = ['BCE', ...new Set(COMPETITORS.map(c => c.operator))];
+  operators.forEach(op => {
+    const btn = document.createElement('button');
+    btn.className = 'filter-btn active';
+    btn.innerHTML = `<span class="dot" style="background:${OPERATOR_COLORS[op] || '#8E8D83'}"></span>${op}`;
+    btn.onclick = () => {
+      btn.classList.toggle('active');
+      if (btn.classList.contains('active')) { if (layerGroups[op]) map.addLayer(layerGroups[op]); }
+      else { if (layerGroups[op]) map.removeLayer(layerGroups[op]); }
+    };
+    container.appendChild(btn);
+  });
+}
+
+// Status filters
+function buildStatusFilters() {
+  const container = document.getElementById('status-filters');
+  Object.entries(STATUS_MAP).forEach(([key, val]) => {
+    const btn = document.createElement('button');
+    btn.className = 'filter-btn active';
+    btn.innerHTML = `<span class="dot" style="background:${val.color}"></span>${val.label}`;
+    btn.dataset.status = key;
+    btn.onclick = () => { btn.classList.toggle('active'); applyStatusFilter(); };
+    container.appendChild(btn);
+  });
+}
+
+function applyStatusFilter() {
+  const activeStatuses = new Set([...document.querySelectorAll('#status-filters .filter-btn.active')].map(b => b.dataset.status));
+  allMarkers.forEach(m => {
+    const el = m.getElement();
+    if (!el) return;
+    el.style.display = activeStatuses.has(m._dcData.status) ? '' : 'none';
+  });
+}
+
+let currentSovFilter = 'all';
+function toggleSovFilter(type) {
+  currentSovFilter = type;
+  document.querySelectorAll('.section:has([onclick*="toggleSovFilter"]) .filter-btn').forEach(b => b.classList.remove('active'));
+  event.target.closest('.filter-btn').classList.add('active');
+  allMarkers.forEach(m => {
+    const d = m._dcData; const el = m.getElement(); if (!el) return;
+    if (type === 'all') { el.style.display = ''; return; }
+    if (type === 'sovereign') { el.style.display = (d.sovereign === true || d.operator === 'BCE') ? '' : 'none'; }
+    else { el.style.display = (d.sovereign === false) ? '' : 'none'; }
+  });
+}
+
+// BCE site cards
+function buildBCESiteCards() {
+  const container = document.getElementById('bce-sites-list');
+  BCE_SITES.forEach(site => {
+    const s = STATUS_MAP[site.status] || STATUS_MAP['PLANNED'];
+    const card = document.createElement('div');
+    card.className = 'site-card';
+    card.innerHTML = `
+      <div class="site-card-header"><span class="site-id">${site.id}</span><span class="badge ${s.cls}">${s.label}</span></div>
+      <div class="site-name">${site.name}</div>
+      <div class="site-detail">
+        <strong>Capacity:</strong> ${site.mw ? site.mw + ' MW' : 'Not Disclosed'} | <strong>Online:</strong> ${site.online}<br>
+        <strong>Power:</strong> ${site.power} (${site.rate} USD/kWh)<br>
+        <strong>Tenant:</strong> ${site.tenant}<br>
+        ${site.notes}<br>
+        <em style="font-size:8px;color:var(--text-muted)">Source: ${site.source}</em>
+      </div>
+    `;
+    card.onclick = () => {
+      map.flyTo([site.lat, site.lng], 10, { duration: 0.8 });
+      const marker = allMarkers.find(m => m._dcData.id === site.id);
+      if (marker) setTimeout(() => marker.openPopup(), 900);
+    };
+    container.appendChild(card);
+  });
+}
+
+// Timeline
+function buildTimeline() {
+  const container = document.getElementById('bce-timeline');
+  TIMELINE_EVENTS.forEach(ev => {
+    const entry = document.createElement('div');
+    entry.className = `tl-entry ${ev.cls}`;
+    entry.innerHTML = `<div class="tl-date">${ev.date}</div><div class="tl-text">${ev.text}</div>`;
+    container.appendChild(entry);
+  });
+}
+
+// IPO scenarios
+function buildIPOScenarios() {
+  const container = document.getElementById('ipo-scenarios');
+  IPO_SCENARIOS.forEach(s => {
+    const card = document.createElement('div');
+    card.className = 'site-card'; card.style.cursor = 'default';
+    card.innerHTML = `
+      <div class="flex-between mb-6">
+        <span style="font-size:11px;font-weight:600">${s.name}</span>
+        <span class="mono" style="font-size:11px;color:var(--bronze)">${s.multiple}</span>
+      </div>
+      <div class="flex-between">
+        <span class="text-sm text-muted">${s.rationale}</span>
+        <span class="mono" style="font-size:12px;font-weight:700;color:var(--lagoon)">${s.ev_low} – ${s.ev_high}</span>
+      </div>
+      <div style="font-size:8px;color:var(--text-muted);margin-top:3px">Source: ${s.source}</div>
+    `;
+    container.appendChild(card);
+  });
+}
+
+// Competitor list with news modal
+function buildCompetitorList() {
+  const container = document.getElementById('competitor-list');
+  const uniqueOps = {};
+  COMPETITORS.forEach(c => { if (!uniqueOps[c.operator]) uniqueOps[c.operator] = []; uniqueOps[c.operator].push(c); });
+
+  Object.entries(uniqueOps).forEach(([op, sites]) => {
+    const totalMW = sites.reduce((s, c) => s + (c.mw || 0), 0);
+    const threat = sites[0].threat;
+    const sov = sites[0].sovereign;
+    const card = document.createElement('div');
+    card.className = 'comp-card';
+    card.innerHTML = `
+      <div class="comp-left">
+        <div class="comp-name" style="color:${OPERATOR_COLORS[op] || '#8E8D83'}">${op}</div>
+        <div class="comp-site">${sites.map(s => s.site || s.province).join(' · ')}</div>
+        <div class="comp-detail">
+          ${sov === true ? '<span class="badge sovereign">SOVEREIGN</span>' : sov === false ? '<span class="badge cloud-act">CLOUD ACT</span>' : ''}
+          <span class="badge threat-${threat === 'HIGH' || threat === 'HIGH in BC' ? 'high' : 'med'}">${threat}</span>
+          <br>${sites[0].notes}<br>
+          <em style="font-size:8px;color:var(--text-muted)">Source: ${sites[0].source}</em>
+        </div>
+      </div>
+      <div class="comp-right">
+        <div class="comp-mw">${totalMW > 0 ? totalMW : 'N/D'}</div>
+        <div class="comp-mw-label">${totalMW > 0 ? 'MW Total' : 'MW'}</div>
+      </div>
+    `;
+    card.onclick = () => { openNewsModal(op); map.flyTo([sites[0].lat, sites[0].lng], 8, { duration: 0.8 }); };
+    container.appendChild(card);
+  });
+}
+
+// Hyperscaler section
+function buildHyperscalerList() {
+  const container = document.getElementById('hyperscaler-list');
+  const hyperscalers = [
+    { name:'Microsoft', color:'var(--lake)', locations:'Toronto, Quebec City', invest:'C$19B', detail:'Largest foreign DC commitment. CLOUD Act exposed.', badge:'cloud-act', source:'Microsoft Canada Dec 2024' },
+    { name:'AWS', color:'var(--amber)', locations:'Montreal, Calgary (new)', invest:'C$24.8B', detail:'Through 2037. Cerebras partnership. CLOUD Act exposed.', badge:'cloud-act', source:'AWS press release Jan 2025' },
+    { name:'Google', color:'var(--bordeaux)', locations:'Montreal, Toronto', invest:'N/D', detail:'CLOUD Act exposed. Investment not publicly disclosed.', badge:'cloud-act', source:'Google Cloud blog' },
+    { name:'Meta', color:'#1877F2', locations:'Alberta (via Beacon AI)', invest:'~US$10B+', detail:'Acquired Beacon AI AESO queue position. ~400MW planned.', badge:'cloud-act', source:'Market Intel / Chatter; AESO queue' },
+    { name:'Oracle', color:'#F80000', locations:'Toronto, Montreal', invest:'N/D', detail:'OCI Canada regions. CLOUD Act exposed.', badge:'cloud-act', source:'Oracle Cloud website' }
+  ];
+
+  hyperscalers.forEach(h => {
+    const card = document.createElement('div');
+    card.className = 'comp-card';
+    card.innerHTML = `
+      <div class="comp-left">
+        <div class="comp-name" style="color:${h.color}">${h.name}</div>
+        <div class="comp-site">${h.locations}</div>
+        <div class="comp-detail"><span class="badge ${h.badge}">US CONTROLLED</span> ${h.detail}<br><em style="font-size:8px;color:var(--text-muted)">Source: ${h.source}</em></div>
+      </div>
+      <div class="comp-right"><div class="comp-mw">${h.invest}</div><div class="comp-mw-label">Investment</div></div>
+    `;
+    container.appendChild(card);
+  });
+}
+
+// Power chart
+function buildPowerChart() {
+  const container = document.getElementById('power-chart');
+  const maxRate = Math.max(...PROVINCE_POWER.map(p => p.rate));
+  PROVINCE_POWER.forEach(p => {
+    const pct = (p.rate / maxRate * 100).toFixed(0);
+    const row = document.createElement('div');
+    row.innerHTML = `
+      <div class="power-row">
+        <div class="power-label">${p.name}</div>
+        <div class="power-track"><div class="power-fill" style="width:${pct}%;background:${p.color}"></div></div>
+        <div class="power-val">${(p.rate * 100).toFixed(1)}¢</div>
+      </div>
+      ${p.note ? `<div class="power-note">${p.note} <em style="font-size:7.5px">[${p.source}]</em></div>` : ''}
+    `;
+    container.appendChild(row);
+  });
+}
+
+// Regulatory stance cards
+function buildRegStance() {
+  const container = document.getElementById('reg-stance-list');
+  const provinces = ['BC','AB','SK','MB','ON','QC'];
+  const names = { BC:'British Columbia', AB:'Alberta', SK:'Saskatchewan', MB:'Manitoba', ON:'Ontario', QC:'Quebec' };
+  provinces.forEach(code => {
+    const pd = PROVINCE_DATA[code];
+    if (!pd) return;
+    const card = document.createElement('div');
+    card.className = 'policy-card';
+    card.innerHTML = `
+      <div class="policy-title">${names[code]} (${code})</div>
+      <div class="policy-date">${(pd.rate*100).toFixed(1)}¢ USD/kWh | Activity: ${pd.activity}</div>
+      <div class="policy-body">${pd.reg}</div>
+    `;
+    container.appendChild(card);
+  });
+}
+
+// Province charts (pie + stacked bar)
+function buildProvinceCharts() {
+  const allSites = [...BCE_SITES, ...COMPETITORS];
+  const provGroups = {};
+  allSites.forEach(s => {
+    if (!provGroups[s.province]) provGroups[s.province] = { sites: 0, mw: 0, sovereign: 0, cloudAct: 0 };
+    provGroups[s.province].sites++;
+    provGroups[s.province].mw += (s.mw || 0);
+    if (s.sovereign === true || s.operator === 'BCE') provGroups[s.province].sovereign++;
+    else provGroups[s.province].cloudAct++;
+  });
+
+  const labels = Object.keys(provGroups).sort((a,b) => provGroups[b].sites - provGroups[a].sites);
+  const siteCounts = labels.map(l => provGroups[l].sites);
+  const sovCounts = labels.map(l => provGroups[l].sovereign);
+  const cloudCounts = labels.map(l => provGroups[l].cloudAct);
+
+  // Stacked bar - sites by sovereignty
+  new Chart(document.getElementById('chart-province-sites'), {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [
+        { label: 'Sovereign', data: sovCounts, backgroundColor: '#469A6C' },
+        { label: 'CLOUD Act', data: cloudCounts, backgroundColor: '#BD000C' }
+      ]
+    },
+    options: {
+      responsive: true, plugins: { legend: { position: 'bottom', labels: { font: { size: 9, family: 'DM Sans' } } }, title: { display: true, text: 'Sites by Province & Sovereignty', font: { size: 11, family: 'DM Sans', weight: 600 } } },
+      scales: { x: { stacked: true, ticks: { font: { size: 9 } } }, y: { stacked: true, beginAtZero: true, ticks: { font: { size: 9 } } } }
+    }
+  });
+
+  // Pie chart - MW by province
+  const mwLabels = labels.filter(l => provGroups[l].mw > 0);
+  const mwData = mwLabels.map(l => provGroups[l].mw);
+  const pieColors = ['#E60000','#00759E','#469A6C','#B98E2C','#4972AC','#E4A911','#45999C','#879420'];
+
+  new Chart(document.getElementById('chart-province-mw'), {
+    type: 'pie',
+    data: {
+      labels: mwLabels.map(l => l + ' (' + provGroups[l].mw + ' MW)'),
+      datasets: [{ data: mwData, backgroundColor: pieColors.slice(0, mwLabels.length) }]
+    },
+    options: {
+      responsive: true,
+      plugins: {
+        legend: { position: 'bottom', labels: { font: { size: 9, family: 'DM Sans' }, padding: 8 } },
+        title: { display: true, text: 'Known Capacity (MW) by Province', font: { size: 11, family: 'DM Sans', weight: 600 } }
+      }
+    }
+  });
+}
+
+// Power Queue tables
+function buildPowerQueues() {
+  // Alberta AESO
+  const abQueue = [
+    { company:'Beacon AI → Meta', mw:'400', location:'Near Calgary', status:'Transferred', owner:'Meta Platforms (NASDAQ: META)', source:'Market Intel / AESO queue', note:'Power position acquired by Meta from Beacon AI' },
+    { company:'AWS', mw:'N/D', location:'Calgary region', status:'Under development', owner:'Amazon.com (NASDAQ: AMZN)', source:'AWS press release Oct 2025', note:'Part of C$24.8B Canada commitment' },
+    { company:'Various crypto → AI converters', mw:'200+', location:'Southern AB', status:'Mixed', owner:'Various', source:'AESO interconnection queue', note:'Multiple small operators converting crypto to AI inference.' },
+    { company:'AESO Large Load Framework', mw:'1,200 (interim cap)', location:'Province-wide', status:'Regulatory framework', owner:'N/A — Bill 8 framework', source:'Alberta Bill 8 (Royal Assent Dec 11, 2025)', note:'Self-supply fast-track. DCs pay for transmission. 2 projects already allocated. Phase 2 framework expected early 2026.' }
+  ];
+  buildQueueTable('queue-alberta', abQueue);
+
+  // BC Hydro
+  const bcQueue = [
+    { company:'BCE AI Fabric', mw:'~140 (of 400MW pool)', location:'BC Interior', status:'Applied', owner:'BCE Inc. (TSX: BCE)', source:'BCE Investor Day Oct 2025', note:'Targeting ~35% of 400MW competitive pool' },
+    { company:'IREN', mw:'160 (existing)', location:'BC', status:'Operational', owner:'IREN Ltd (NASDAQ: IREN)', source:'IREN 10-K 2025', note:'Pre-existing allocation before pool' },
+    { company:'Reg 8/2026 Pool (Year 1-2)', mw:'400 (300 AI + 100 conv)', location:'Various BC', status:'Applications open', owner:'Multiple (undisclosed)', source:'BC Laws Reg 8/2026; BC Gov press release', note:'Per-project cap 145MW. Crypto banned. Data sovereignty scoring. Must show curtailment capability.' }
+  ];
+  buildQueueTable('queue-bc', bcQueue);
+
+  // Quebec
+  const qcQueue = [
+    { company:'QScale', mw:'142', location:'Lévis', status:'Operational (legacy rate)', owner:'QScale (private, QC)', source:'QScale website', note:'Legacy 4.5¢ rate locked in. Grandfathered.' },
+    { company:'Vantage', mw:'178', location:'Quebec', status:'Expanding', owner:'DigitalBridge (NYSE: DBRG)', source:'Vantage press release', note:'C$2.5B total. Subject to new DC rate.' },
+    { company:'eStruxture', mw:'130', location:'Montreal', status:'Operational', owner:'eStruxture (private, QC)', source:'eStruxture website', note:'Canadian-owned. Legacy rate for existing.' },
+    { company:'Microsoft', mw:'N/D', location:'Quebec City', status:'Expanding', owner:'Microsoft (NASDAQ: MSFT)', source:'Microsoft Canada Dec 2024', note:'Subject to new DC rate (~2x).' }
+  ];
+  buildQueueTable('queue-quebec', qcQueue);
+
+  // Ontario
+  const onQueue = [
+    { company:'Microsoft', mw:'N/D', location:'Toronto region', status:'Expanding', owner:'Microsoft (NASDAQ: MSFT)', source:'Microsoft Canada Dec 2024', note:'C$7.5B near-term. Subject to Bill 40 Ministerial approval.' },
+    { company:'Equinix', mw:'N/D', location:'Toronto (TR1-TR3)', status:'Operational', owner:'Equinix (NASDAQ: EQIX)', source:'Equinix website', note:'3 facilities. Interconnection hub.' },
+    { company:'Digital Realty', mw:'N/D', location:'Toronto', status:'Operational', owner:'Digital Realty (NYSE: DLR)', source:'DLR website', note:'Multiple facilities.' },
+    { company:'BCE (ON-1)', mw:'N/D', location:'Kingston', status:'MOU Stage', owner:'BCE Inc. (TSX: BCE)', source:'Queen\'s U press release Dec 2025', note:'Contingent on C$926M federal Sovereign Compute program.' },
+    { company:'IESO Pipeline', mw:'~385 (2025 connected)', location:'GTA / Ontario', status:'Queue active', owner:'Multiple (confidential)', source:'IESO 2025 Annual Planning Outlook', note:'Bill 40: Ministerial approval now required. 16 new DCs expected in 10 years = 13% of new demand. GTA transmission constrained.' }
+  ];
+  buildQueueTable('queue-ontario', onQueue);
+
+  // Saskatchewan
+  const skQueue = [
+    { company:'BCE (SK-1)', mw:'300 (Phase 1: ~50)', location:'RM Sherwood No. 159 (Regina)', status:'Construction Spring 2026', owner:'BCE Inc. (TSX: BCE)', source:'BCE press release Mar 16, 2026; CBC', note:'$1.7B construction. CoreWeave + Cerebras tenants. Phase 1 H1 2027. SaskPower building 200MW transmission.' }
+  ];
+  buildQueueTable('queue-sask', skQueue);
+
+  // New Brunswick
+  const nbQueue = [
+    { company:'Proposed DC project', mw:'190', location:'Lorneville (Saint John)', status:'Under discussion', owner:'Unknown', source:'CBC NB Power Dec 2025', note:'NB Power seeking "flexibility" on consumption. Crypto exempted from obligation to serve, but DCs not exempted.' }
+  ];
+  buildQueueTable('queue-nb', nbQueue);
+}
+
+function buildQueueTable(containerId, data) {
+  const container = document.getElementById(containerId);
+  let html = `<table class="queue-table">
+    <thead><tr><th>Operator</th><th>MW</th><th>Location</th><th>Status</th><th>Ultimate Owner</th></tr></thead><tbody>`;
+  data.forEach(d => {
+    html += `<tr>
+      <td class="company">${d.company}</td>
+      <td class="mw-cell">${d.mw}</td>
+      <td>${d.location}</td>
+      <td><span class="badge ${d.status === 'Operational' || d.status === 'Operational (legacy rate)' ? 'operational' : d.status === 'Expanding' ? 'expanding' : d.status === 'Applied' || d.status === 'Rezoning filed' ? 'planned' : 'mou'}">${d.status}</span></td>
+      <td>${d.owner}<br><em style="font-size:8px;color:var(--text-muted)">${d.note}</em><br><em style="font-size:7.5px;color:var(--lagoon)">[${d.source}]</em></td>
+    </tr>`;
+  });
+  html += '</tbody></table>';
+  container.innerHTML = html;
+}
+
+// Markets tab — mini maps
+function buildMetroMaps() {
+  const container = document.getElementById('metro-maps');
+  METRO_AREAS.forEach((metro, idx) => {
+    const sites = [...BCE_SITES, ...COMPETITORS].filter(s => metro.provinces.includes(s.province));
+    const totalMW = sites.reduce((sum, s) => sum + (s.mw || 0), 0);
+    const wrapper = document.createElement('div');
+    wrapper.className = 'section';
+    wrapper.innerHTML = `
+      <div class="mini-map-container">
+        <div class="mini-map-label">
+          <span>${metro.name}</span>
+          <span class="metro-stat">${sites.length} sites · ${totalMW > 0 ? totalMW + ' MW' : 'MW N/D'}</span>
+        </div>
+        <div class="mini-map" id="mini-map-${idx}"></div>
+      </div>
+    `;
+    container.appendChild(wrapper);
+
+    // Initialize mini map after DOM is ready
+    setTimeout(() => {
+      const miniMap = L.map(`mini-map-${idx}`, {
+        center: metro.center, zoom: metro.zoom, zoomControl: false,
+        attributionControl: false, scrollWheelZoom: false, dragging: true
+      });
+      L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+        maxZoom: 19, subdomains: 'abcd'
+      }).addTo(miniMap);
+
+      sites.forEach(site => {
+        const op = site.operator || 'BCE';
+        const color = OPERATOR_COLORS[op] || '#8E8D83';
+        const iconHTML = getDCIconHTML(site.mw || 0, color, op);
+        const totalW = site.mw >= 200 ? 40 : site.mw >= 100 ? 32 : 24;
+        const totalH = site.mw >= 200 ? 34 : site.mw >= 100 ? 28 : 20;
+        const icon = L.divIcon({ className: '', html: iconHTML, iconSize: [totalW, totalH], iconAnchor: [totalW/2, totalH] });
+        const marker = L.marker([site.lat, site.lng], { icon }).addTo(miniMap);
+        const label = site.id || op;
+        marker.bindPopup(`<strong style="color:${color}">${label}</strong><br>${site.name || site.site}<br>${site.mw ? site.mw + ' MW' : 'N/D'}`);
+      });
+    }, 200);
+  });
+}
+
+// Investor content
+function buildInvestorContent() {
+  const container = document.getElementById('investor-content');
+  container.innerHTML = `
+    <div class="inv-category">
+      <div class="inv-category-label">DC REITs & Public Vehicles</div>
+      <div class="inv-item">
+        <div class="inv-name">Equinix (EQIX)</div>
+        <div class="inv-detail">Colocation + interconnection REIT. Global #1.</div>
+        <div class="inv-metric">EV: US$111.6B | 27.7x EV/EBITDA | Rev: US$9.26B<sup class="ref">25</sup></div>
+      </div>
+      <div class="inv-item">
+        <div class="inv-name">Digital Realty (DLR)</div>
+        <div class="inv-detail">Wholesale/hyperscale REIT. Floor multiple for DC.</div>
+        <div class="inv-metric">EV: US$75.8B | 20.5x EV/EBITDA | Rev: US$6.11B<sup class="ref">25</sup></div>
+      </div>
+      <div class="inv-item">
+        <div class="inv-name">CoreWeave (CRWV)</div>
+        <div class="inv-detail">GPU cloud — IPO'd Mar 2025 at $40. Massive backlog.</div>
+        <div class="inv-metric">EV: US$60-82B | US$66.8B RPO | 850MW active<sup class="ref">26</sup></div>
+      </div>
+      <div class="inv-item">
+        <div class="inv-name">Applied Digital (APLD)</div>
+        <div class="inv-detail">AI DC developer. 150MW lease w/ CoreWeave, 15-year.</div>
+        <div class="inv-metric">EV: US$11B | US$11B contracted backlog<sup class="ref">27</sup></div>
+      </div>
+    </div>
+
+    <div class="inv-category">
+      <div class="inv-category-label">DC ABS / Securitization Precedents</div>
+      <div class="inv-item">
+        <div class="inv-name">eStruxture — Canada's First DC ABS</div>
+        <div class="inv-detail">C$1.35B securitization (July 2025). 16 sites, 130MW. Proof of concept for Canadian DC ABS.</div>
+        <div class="inv-metric">C$1.35B | Canadian-owned | Sovereign AI consortium member<sup class="ref">28</sup></div>
+      </div>
+      <div class="inv-item">
+        <div class="inv-name">DC Take-Private Comps</div>
+        <div class="inv-detail">Blackstone/QTS ($10B, 26.1x) | Switch/DigitalBridge ($11B, 27.5x) | Aligned/Blackstone ($40B, largest ever)<sup class="ref">29</sup></div>
+      </div>
+    </div>
+
+    <div class="inv-category">
+      <div class="inv-category-label">Canadian Pension Funds — DC Allocations</div>
+      <div class="inv-item">
+        <div class="inv-name">PSP Investments</div>
+        <div class="inv-detail">BCE FiberCo precedent (partial stake sale model). Template for DC segment partnership.<sup class="ref">30</sup></div>
+      </div>
+      <div class="inv-item">
+        <div class="inv-name">CDPQ (Caisse de dépôt)</div>
+        <div class="inv-detail">Quebec-based. Infrastructure allocation growing. C$15B federal pension DC incentive (proposed).<sup class="ref">10</sup></div>
+      </div>
+      <div class="inv-item">
+        <div class="inv-name">CPP Investments / OMERS / AIMCo / OTPP</div>
+        <div class="inv-detail">All actively growing digital infra allocations. C$15B incentive would accelerate.<sup class="ref">10</sup></div>
+      </div>
+    </div>
+
+    <div class="inv-category">
+      <div class="inv-category-label">IPP Yieldcos (Adjacent Structures)</div>
+      <div class="inv-item">
+        <div class="inv-name">TransAlta / Northland Power / Innergex</div>
+        <div class="inv-detail">Canadian renewable power yieldcos. PPA-backed contracted cash flows. Natural analogy for DC power infrastructure.<sup class="ref">31</sup></div>
+      </div>
+      <div class="inv-item">
+        <div class="inv-name">Capital Power / Boralex / Brookfield Renewable</div>
+        <div class="inv-detail">Larger IPP platforms with yield characteristics. DC power convergence emerging.<sup class="ref">31</sup></div>
+      </div>
+    </div>
+
+    <div class="inv-category">
+      <div class="inv-category-label">Japanese Infrastructure Investors</div>
+      <div class="inv-item">
+        <div class="inv-name">NTT (via NTT DATA / RagingWire)</div>
+        <div class="inv-detail">Global DC operator via NTT Global Data Centers. RagingWire US platform. Natural Canada expansion candidate.<sup class="ref">32</sup></div>
+      </div>
+      <div class="inv-item">
+        <div class="inv-name">SoftBank / ORIX / Daiwa / MUFG</div>
+        <div class="inv-detail">Active infra investors. Daiwa significant IPP yieldco investor (MetroConnect intel). SoftBank's $500B AI investment initiative could extend to Canada sovereign DC.<sup class="ref">MC</sup></div>
+      </div>
+    </div>
+
+    <div class="inv-category">
+      <div class="inv-category-label">Infrastructure PE — Active DC Buyers</div>
+      <div class="inv-item">
+        <div class="inv-name">Blackstone</div>
+        <div class="inv-detail">QTS ($10B, 2021), Aligned ($40B, 2025). Largest DC investor globally.<sup class="ref">29</sup></div>
+      </div>
+      <div class="inv-item">
+        <div class="inv-name">DigitalBridge / KKR / Stonepeak</div>
+        <div class="inv-detail">DigitalBridge: Switch, Vantage. KKR: CyrusOne. Stonepeak: Cologix. All US-owned (CLOUD Act).<sup class="ref">29</sup></div>
+      </div>
+      <div class="inv-item">
+        <div class="inv-name">GI Partners / Brookfield / Macquarie</div>
+        <div class="inv-detail">All have active DC/digital infra platforms. Brookfield: $150B+ infra AUM. Macquarie: data center fund.<sup class="ref">29</sup></div>
+      </div>
+    </div>
+  `;
+
+  // Investor footnotes
+  document.getElementById('investor-footnotes').innerHTML = `
+    <div class="footnote-title">Sources</div>
+    <div class="fn"><sup>25</sup> FactSet / Bloomberg — public market data as of Mar 2026</div>
+    <div class="fn"><sup>26</sup> CoreWeave S-1, IPO prospectus Mar 2025</div>
+    <div class="fn"><sup>27</sup> Applied Digital 10-K 2025</div>
+    <div class="fn"><sup>28</sup> eStruxture press release — C$1.35B ABS, Jul 2025</div>
+    <div class="fn"><sup>29</sup> Synergy Research Group / S&P Capital IQ — DC M&A tracker</div>
+    <div class="fn"><sup>30</sup> PSP Investments annual report 2025</div>
+    <div class="fn"><sup>31</sup> TSX-listed yieldco public filings</div>
+    <div class="fn"><sup>32</sup> NTT Global Data Centers website</div>
+    <div class="fn"><sup>MC</sup> Market Intel / Chatter</div>
+  `;
+}
+
+// News modal
+function openNewsModal(operator) {
+  const modal = document.getElementById('newsModal');
+  document.getElementById('newsModalTitle').textContent = operator + ' — Recent News & Permits';
+  document.getElementById('newsModalTitle').style.color = OPERATOR_COLORS[operator] || '#1a1a1a';
+
+  const news = OPERATOR_NEWS[operator] || [];
+  const body = document.getElementById('newsModalBody');
+
+  if (news.length === 0) {
+    body.innerHTML = '<div class="text-muted text-sm">No recent news tracked for this operator.</div>';
+  } else {
+    body.innerHTML = news.map(n => `
+      <div class="news-item">
+        <div class="news-date">${n.date}</div>
+        <div class="news-headline">${n.url ? `<a href="${n.url}" target="_blank">${n.headline}</a>` : n.headline}</div>
+        <div class="news-source">Source: ${n.source}</div>
+      </div>
+    `).join('');
+  }
+
+  modal.classList.add('active');
+}
+
+function closeNewsModal() { document.getElementById('newsModal').classList.remove('active'); }
+document.getElementById('newsModal').addEventListener('click', e => { if (e.target === e.currentTarget) closeNewsModal(); });
+
+
+/* ═══════════════════════════════════════════════════════
+   TAB SWITCHING
+   ═══════════════════════════════════════════════════════ */
+
+document.querySelectorAll('.tab-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
+
+    if (btn.dataset.tab === 'bce') map.flyTo([52, -115], 5, { duration: 0.8 });
+    else if (btn.dataset.tab === 'overview' || btn.dataset.tab === 'sovereign') map.flyTo([56, -96], 4, { duration: 0.8 });
+
+    // Invalidate mini maps on Markets tab
+    if (btn.dataset.tab === 'markets') {
+      setTimeout(() => {
+        document.querySelectorAll('.mini-map').forEach(el => {
+          const mapInstance = el._leaflet_id ? L.map(el) : null;
+        });
+      }, 200);
+    }
+  });
+});
+
+
+/* ═══════════════════════════════════════════════════════
+   MAP LEGEND
+   ═══════════════════════════════════════════════════════ */
+
+function buildLegend() {
+  const legend = L.control({ position: 'bottomright' });
+  legend.onAdd = () => {
+    const div = L.DomUtil.create('div', 'map-legend');
+    const ops = Object.entries(OPERATOR_COLORS).filter(([op]) =>
+      BCE_SITES.some(s => true) || COMPETITORS.some(c => c.operator === op)
+    );
+    div.innerHTML = `
+      <div class="legend-title">OPERATORS</div>
+      ${ops.map(([op, color]) => `<div class="legend-item"><div class="legend-dot" style="background:${color}"></div>${op}</div>`).join('')}
+      <div class="legend-section">
+        <div class="legend-title">STATUS</div>
+        <div class="legend-item"><div class="legend-dot" style="background:#469A6C"></div>Operational</div>
+        <div class="legend-item"><div class="legend-dot" style="background:#E4A911"></div>Under Construction / Expanding</div>
+        <div class="legend-item"><div class="legend-dot" style="background:#00759E"></div>Planned</div>
+        <div class="legend-item"><div class="legend-dot" style="background:#8E8D83"></div>Pre-Permit / MOU</div>
+      </div>
+      <div class="legend-section">
+        <div class="legend-title">ICON SIZE = CAPACITY (MW)</div>
+        <div class="legend-item" style="font-size:8px;color:var(--text-muted)">More server racks = more MW</div>
+      </div>
+    `;
+    return div;
+  };
+  legend.addTo(map);
+}
+
+
+/* ═══════════════════════════════════════════════════════
+   SIDEBAR TOGGLE
+   ═══════════════════════════════════════════════════════ */
+
+function toggleSidebar() {
+  const sb = document.getElementById('sidebar');
+  sb.classList.toggle('collapsed');
+  document.getElementById('sidebarToggle').style.left = sb.classList.contains('collapsed') ? '0' : '480px';
+  setTimeout(() => map.invalidateSize(), 350);
+}
+
+
+/* ═══════════════════════════════════════════════════════
+   INITIALIZE
+   ═══════════════════════════════════════════════════════ */
+
+buildOperatorFilters();
+buildStatusFilters();
+buildBCESiteCards();
+buildTimeline();
+buildIPOScenarios();
+buildCompetitorList();
+buildHyperscalerList();
+buildPowerChart();
+buildRegStance();
+buildProvinceCharts();
+buildPowerQueues();
+buildMetroMaps();
+buildInvestorContent();
+buildLegend();
+</script>
+</body>
+</html>
