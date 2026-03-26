@@ -801,7 +801,8 @@ const OPERATOR_COLORS = {
   'eStruxture': '#B98E2C', 'IREN': '#4972AC', 'Cologix': '#45999C',
   'Vantage': '#879420', 'Microsoft': '#0C7EC6', 'AWS': '#E4A911',
   'Google': '#BD000C', 'Meta': '#1877F2', 'Oracle': '#F80000',
-  'Equinix': '#ED1C24', 'Digital Realty': '#0066B3', 'OVHcloud': '#123456'
+  'Equinix': '#ED1C24', 'Digital Realty': '#0066B3', 'OVHcloud': '#123456',
+  'TransAlta': '#6B8E23', 'Beacon AI': '#FF6B35', 'Capital Power': '#2E8B57', 'Compass': '#708090'
 };
 
 const STATUS_MAP = {
@@ -835,7 +836,8 @@ const COMPETITORS = [
   { operator:'Cologix', site:'Toronto', lat:43.6400, lng:-79.4100, mw:null, status:'OPERATIONAL', province:'ON', sovereign:false, threat:'MEDIUM', notes:'Part of 23-site Canadian footprint.', partners:'Stonepeak', source:'Cologix website' },
   { operator:'Cologix', site:'Vancouver', lat:49.2827, lng:-123.1207, mw:null, status:'OPERATIONAL', province:'BC', sovereign:false, threat:'MEDIUM', notes:'Part of 23-site Canadian footprint.', partners:'Stonepeak', source:'Cologix website' },
   { operator:'Vantage', site:'Quebec', lat:46.85, lng:-71.25, mw:178, status:'EXPANDING', province:'QC', sovereign:false, threat:'MEDIUM', notes:'C$2.5B total investment. DigitalBridge-owned (US). CLOUD Act exposed.', partners:'DigitalBridge', source:'Vantage Data Centers press release 2025' },
-  { operator:'Meta', site:'Alberta (Beacon AI site)', lat:51.10, lng:-114.15, mw:400, status:'PLANNED', province:'AB', sovereign:false, threat:'HIGH', notes:'Acquired power queue position from Beacon AI. 400MW target. AESO interconnection in progress.', partners:'', source:'Market Intel / Chatter; AESO queue filings' },
+  { operator:'Meta', site:'Greenlight DC Complex (Sturgeon County)', lat:53.70, lng:-113.20, mw:907, status:'PLANNED', province:'AB', sovereign:false, threat:'HIGH', notes:'907MW via Greenlight Electricity Centre (Pembina Pipeline 50% / Kineticor-OPTrust JV). Includes 180MW Kalina Power transfer ($18M / $100K per MW). DTS agreement signed with AESO. Grid connection target: early 2027. Land sale ~$190M to Pembina.', partners:'Pembina Pipeline, Kineticor (OPTrust)', source:'The Logic Oct 2025; Pembina press release; CBC; DCD' },
+  { operator:'eStruxture', site:'CAL-3 (Rocky View County)', lat:51.15, lng:-114.00, mw:90, status:'PLANNED', province:'AB', sovereign:true, threat:'MEDIUM', notes:'$750M investment. Alberta\'s largest planned colo facility. Coming online H2 2026. Canadian-owned.', partners:'', source:'eStruxture press release; DCD' },
   { operator:'Microsoft', site:'Toronto Region', lat:43.70, lng:-79.42, mw:null, status:'EXPANDING', province:'ON', sovereign:false, threat:'HIGH', notes:'C$7.5B near-term (C$19B total). Vastly outscales all Canadian operators. CLOUD Act exposed.', partners:'', source:'Microsoft Canada press release Dec 2024' },
   { operator:'Microsoft', site:'Quebec City', lat:46.85, lng:-71.30, mw:null, status:'EXPANDING', province:'QC', sovereign:false, threat:'HIGH', notes:'Part of C$19B Canada commitment. CLOUD Act exposed.', partners:'', source:'Microsoft Canada press release Dec 2024' },
   { operator:'AWS', site:'Montreal Region', lat:45.52, lng:-73.61, mw:null, status:'OPERATIONAL', province:'QC', sovereign:false, threat:'HIGH', notes:'C$24.8B through 2037. Largest single foreign DC commitment in Canada.', partners:'Cerebras (inference, Mar 2026)', source:'AWS press release Jan 2025' },
@@ -844,6 +846,12 @@ const COMPETITORS = [
   { operator:'Google', site:'Toronto', lat:43.64, lng:-79.37, mw:null, status:'OPERATIONAL', province:'ON', sovereign:false, threat:'MEDIUM-HIGH', notes:'CLOUD Act exposed.', partners:'', source:'Google Cloud blog' },
   { operator:'Oracle', site:'Toronto', lat:43.66, lng:-79.38, mw:null, status:'OPERATIONAL', province:'ON', sovereign:false, threat:'MEDIUM', notes:'OCI Canada region (Toronto). CLOUD Act exposed.', partners:'', source:'Oracle Cloud Infrastructure website' },
   { operator:'Oracle', site:'Montreal', lat:45.50, lng:-73.57, mw:null, status:'OPERATIONAL', province:'QC', sovereign:false, threat:'MEDIUM', notes:'OCI Canada (Montreal). CLOUD Act exposed.', partners:'', source:'Oracle Cloud Infrastructure website' },
+  // Alberta new entrants
+  { operator:'TransAlta', site:'Keephills (Parkland County)', lat:53.42, lng:-114.41, mw:230, status:'PLANNED', province:'AB', sovereign:true, threat:'MEDIUM', notes:'MOU with CPP Investments + Brookfield. Phase 1: 230MW. Potential to scale to 1GW. Former coal plant site.', partners:'CPP Investments, Brookfield', source:'TransAlta press release; DCD' },
+  { operator:'Beacon AI', site:'Foothills Hub (High River)', lat:50.58, lng:-113.87, mw:400, status:'PRE-PERMIT', province:'AB', sovereign:false, threat:'MEDIUM', notes:'6 Alberta campuses planned, 4.5 GW total. ZERO AESO grid allocation — must bring own generation (Bill 8 BYOG). CEO: Josh Schertzer (ex-Blackstone CTO). Stantec design. Nadia Partners (NYC).', partners:'Stantec (design)', source:'DCD; Alberta Major Projects registry' },
+  { operator:'Capital Power', site:'Genesee (W of Edmonton)', lat:53.30, lng:-114.20, mw:1500, status:'PRE-PERMIT', province:'AB', sovereign:true, threat:'MEDIUM-HIGH', notes:'Up to 1,500MW capacity at Genesee site. In discussions with "significant NA DC provider" (unnamed). Not yet allocated.', partners:'Undisclosed customer', source:'Capital Power press release; AESO queue' },
+  { operator:'QScale', site:'Toronto (Planned)', lat:43.68, lng:-79.35, mw:null, status:'PLANNED', province:'ON', sovereign:true, threat:'MEDIUM-HIGH', notes:'Multi-billion-dollar Toronto DC build planned. Expanding beyond Quebec base.', partners:'Aligned Data Centers, Investissement Quebec', source:'DCD' },
+  { operator:'OVHcloud', site:'Montreal + Cambridge ON', lat:45.51, lng:-73.56, mw:null, status:'OPERATIONAL', province:'QC', sovereign:false, threat:'LOW', notes:'French-owned. Montreal (90K servers since 2011) + Cambridge ON (10MW, 2024). C$145M Ontario investment. Considering western Canada 2026.', partners:'', source:'OVHcloud press releases; DCD' },
   { operator:'Equinix', site:'Toronto', lat:43.65, lng:-79.40, mw:null, status:'OPERATIONAL', province:'ON', sovereign:false, threat:'MEDIUM', notes:'3 Toronto DCs (TR1-TR3). Interconnection hub. CLOUD Act exposed.', partners:'', source:'Equinix website' },
   { operator:'Digital Realty', site:'Toronto', lat:43.63, lng:-79.43, mw:null, status:'OPERATIONAL', province:'ON', sovereign:false, threat:'MEDIUM', notes:'Multiple Toronto facilities. CLOUD Act exposed.', partners:'', source:'Digital Realty website' }
 ];
@@ -1280,7 +1288,7 @@ function buildHyperscalerList() {
     { name:'Microsoft', color:'var(--lake)', locations:'Toronto, Quebec City', invest:'C$19B', detail:'Largest foreign DC commitment. CLOUD Act exposed.', badge:'cloud-act', source:'Microsoft Canada Dec 2024' },
     { name:'AWS', color:'var(--amber)', locations:'Montreal, Calgary (new)', invest:'C$24.8B', detail:'Through 2037. Cerebras partnership. CLOUD Act exposed.', badge:'cloud-act', source:'AWS press release Jan 2025' },
     { name:'Google', color:'var(--bordeaux)', locations:'Montreal, Toronto', invest:'N/D', detail:'CLOUD Act exposed. Investment not publicly disclosed.', badge:'cloud-act', source:'Google Cloud blog' },
-    { name:'Meta', color:'#1877F2', locations:'Alberta (via Beacon AI)', invest:'~US$10B+', detail:'Acquired Beacon AI AESO queue position. ~400MW planned.', badge:'cloud-act', source:'Market Intel / Chatter; AESO queue' },
+    { name:'Meta', color:'#1877F2', locations:'Sturgeon County, AB (via Greenlight/Pembina)', invest:'907 MW', detail:'First Canadian DC. Via Greenlight JV (Pembina 50% + Kineticor/OPTrust). Incl. 180MW Kalina transfer ($18M). Grid 2027.', badge:'cloud-act', source:'The Logic Oct 2025; Pembina press release; CBC' },
     { name:'Oracle', color:'#F80000', locations:'Toronto, Montreal', invest:'N/D', detail:'OCI Canada regions. CLOUD Act exposed.', badge:'cloud-act', source:'Oracle Cloud website' }
   ];
 
@@ -1395,10 +1403,13 @@ function buildProvinceCharts() {
 function buildPowerQueues() {
   // Alberta AESO
   const abQueue = [
-    { company:'Beacon AI → Meta', mw:'400', location:'Near Calgary', status:'Transferred', owner:'Meta Platforms (NASDAQ: META)', source:'Market Intel / AESO queue', note:'Power position acquired by Meta from Beacon AI' },
-    { company:'AWS', mw:'N/D', location:'Calgary region', status:'Under development', owner:'Amazon.com (NASDAQ: AMZN)', source:'AWS press release Oct 2025', note:'Part of C$24.8B Canada commitment' },
-    { company:'Various crypto → AI converters', mw:'200+', location:'Southern AB', status:'Mixed', owner:'Various', source:'AESO interconnection queue', note:'Multiple small operators converting crypto to AI inference.' },
-    { company:'AESO Large Load Framework', mw:'1,200 (interim cap)', location:'Province-wide', status:'Regulatory framework', owner:'N/A — Bill 8 framework', source:'Alberta Bill 8 (Royal Assent Dec 11, 2025)', note:'Self-supply fast-track. DCs pay for transmission. 2 projects already allocated. Phase 2 framework expected early 2026.' }
+    { company:'Greenlight / Meta', mw:'907', location:'Sturgeon County (Industrial Heartland, NE Edmonton)', status:'Phase 1 Winner', owner:'Meta Platforms (NASDAQ: META) via Greenlight (Pembina 50% / Kineticor-OPTrust)', source:'The Logic Oct 2025; Pembina press release; CBC', note:'Largest Phase 1 allocation. Incl. 180MW Kalina transfer ($18M). DTS signed. Grid target: early 2027. Land ~$190M.' },
+    { company:'TransAlta / CPP / Brookfield', mw:'230', location:'Keephills (Parkland County, W of Edmonton)', status:'Phase 1 Winner', owner:'TransAlta (TSX: TA) + CPP Investments + Brookfield', source:'TransAlta press release; DCD', note:'MOU signed. Former coal plant. Potential to scale to 1 GW.' },
+    { company:'Beacon AI (Nadia Partners)', mw:'4,500 (target)', location:'6 campuses: Chestermere, High River, Acheson, Sturgeon, Langdon, Beaumont', status:'BYOG (no grid alloc)', owner:'Nadia Partners (NYC). CEO: Josh Schertzer (ex-Blackstone CTO)', source:'DCD; Alberta Major Projects', note:'ZERO AESO allocation. Must bring own generation under Bill 8. Stantec design.' },
+    { company:'eStruxture CAL-3', mw:'90', location:'Rocky View County (N of Calgary)', status:'Under construction', owner:'eStruxture (private, Canadian)', source:'eStruxture press release', note:'$750M investment. Alberta\'s largest planned colo. Online H2 2026.' },
+    { company:'Capital Power', mw:'up to 1,500', location:'Genesee (W of Edmonton)', status:'In discussions', owner:'Capital Power (TSX: CPX)', source:'Capital Power press release', note:'Unnamed "significant NA DC provider." Not yet allocated.' },
+    { company:'Wonder Valley (O\'Leary)', mw:'7,500 (target)', location:'MD of Greenview (NW Alberta)', status:'Delayed', owner:'O\'Leary Ventures / Kevin O\'Leary', source:'Globe and Mail; The Energy Mix', note:'Off-grid, nat gas + geothermal. Pushed from 2026 to late 2028. $70B headline — treat skeptically.' },
+    { company:'AESO Phase 2 Queue', mw:'~21,100 (42 projects)', location:'Province-wide', status:'Pending Phase 2', owner:'Various', source:'AESO Large Load Projects page; CBC', note:'Phase 1 (1,200MW) fully allocated. 42 projects / ~21 GW waiting. Must BYOG under Bill 8 or wait for Phase 2.' }
   ];
   buildQueueTable('queue-alberta', abQueue);
 
