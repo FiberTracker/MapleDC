@@ -269,7 +269,7 @@ sup.ref { font-size: 8px; color: var(--red); cursor: help; font-weight: 600; }
 
 /* ═══════════════ MARKET ZOOM MINI-MAPS ═══════════════ */
 .mini-map-container { border: 1px solid var(--border); border-radius: 6px; overflow: hidden; margin-bottom: 10px; box-shadow: var(--shadow-sm); }
-.mini-map { height: 200px; width: 100%; }
+.mini-map { height: 320px; width: 100%; }
 .mini-map-label {
   padding: 6px 10px; background: var(--surface-alt); border-bottom: 1px solid var(--border);
   font-size: 10px; font-weight: 700; color: var(--text-primary); display: flex; justify-content: space-between;
@@ -1469,8 +1469,11 @@ function buildQueueTable(containerId, data) {
   container.innerHTML = html;
 }
 
-// Markets tab — mini maps
-function buildMetroMaps() {
+// Markets tab — mini maps (deferred init — only created when tab first shown)
+let miniMapsBuilt = false;
+const miniMapInstances = [];
+
+function buildMetroMapPlaceholders() {
   const container = document.getElementById('metro-maps');
   METRO_AREAS.forEach((metro, idx) => {
     const sites = [...BCE_SITES, ...COMPETITORS].filter(s => metro.provinces.includes(s.province));
@@ -1487,29 +1490,51 @@ function buildMetroMaps() {
       </div>
     `;
     container.appendChild(wrapper);
+  });
+}
 
-    // Initialize mini map after DOM is ready
-    setTimeout(() => {
-      const miniMap = L.map(`mini-map-${idx}`, {
-        center: metro.center, zoom: metro.zoom, zoomControl: false,
-        attributionControl: false, scrollWheelZoom: false, dragging: true
-      });
-      L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
-        maxZoom: 19, subdomains: 'abcd'
-      }).addTo(miniMap);
+function initMiniMaps() {
+  if (miniMapsBuilt) {
+    miniMapInstances.forEach(m => m.invalidateSize());
+    return;
+  }
+  miniMapsBuilt = true;
 
-      sites.forEach(site => {
-        const op = site.operator || 'BCE';
-        const color = OPERATOR_COLORS[op] || '#8E8D83';
-        const iconHTML = getDCIconHTML(site.mw || 0, color, op);
-        const totalW = site.mw >= 200 ? 40 : site.mw >= 100 ? 32 : 24;
-        const totalH = site.mw >= 200 ? 34 : site.mw >= 100 ? 28 : 20;
-        const icon = L.divIcon({ className: '', html: iconHTML, iconSize: [totalW, totalH], iconAnchor: [totalW/2, totalH] });
-        const marker = L.marker([site.lat, site.lng], { icon }).addTo(miniMap);
-        const label = site.id || op;
-        marker.bindPopup(`<strong style="color:${color}">${label}</strong><br>${site.name || site.site}<br>${site.mw ? site.mw + ' MW' : 'N/D'}`);
-      });
-    }, 200);
+  METRO_AREAS.forEach((metro, idx) => {
+    const sites = [...BCE_SITES, ...COMPETITORS].filter(s => metro.provinces.includes(s.province));
+    const el = document.getElementById(`mini-map-${idx}`);
+    if (!el) return;
+
+    const miniMap = L.map(el, {
+      center: metro.center, zoom: metro.zoom, zoomControl: false,
+      attributionControl: false, scrollWheelZoom: true, dragging: true
+    });
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+      maxZoom: 19, subdomains: 'abcd'
+    }).addTo(miniMap);
+
+    const bounds = [];
+    sites.forEach(site => {
+      const op = site.operator || 'BCE';
+      const color = OPERATOR_COLORS[op] || '#8E8D83';
+      const iconHTML = getDCIconHTML(site.mw || 0, color, op);
+      const totalW = site.mw >= 200 ? 40 : site.mw >= 100 ? 32 : 24;
+      const totalH = site.mw >= 200 ? 34 : site.mw >= 100 ? 28 : 20;
+      const icon = L.divIcon({ className: '', html: iconHTML, iconSize: [totalW, totalH], iconAnchor: [totalW/2, totalH] });
+      const marker = L.marker([site.lat, site.lng], { icon }).addTo(miniMap);
+      const label = site.id || op;
+      marker.bindPopup(`<strong style="color:${color}">${label}</strong><br>${site.name || site.site}<br>${site.mw ? site.mw + ' MW' : 'N/D'}`);
+      bounds.push([site.lat, site.lng]);
+    });
+
+    // Fit to actual DC locations instead of static center
+    if (bounds.length > 1) {
+      miniMap.fitBounds(bounds, { padding: [30, 30], maxZoom: 12 });
+    } else if (bounds.length === 1) {
+      miniMap.setView(bounds[0], 11);
+    }
+
+    miniMapInstances.push(miniMap);
   });
 }
 
@@ -1665,16 +1690,30 @@ document.querySelectorAll('.tab-btn').forEach(btn => {
     btn.classList.add('active');
     document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
 
-    if (btn.dataset.tab === 'bce') map.flyTo([52, -115], 5, { duration: 0.8 });
-    else if (btn.dataset.tab === 'overview' || btn.dataset.tab === 'sovereign') map.flyTo([56, -96], 4, { duration: 0.8 });
+    const mapEl = document.getElementById('map');
+    const legendEl = document.querySelector('.map-legend');
+    const toggleEl = document.getElementById('sidebarToggle');
 
-    // Invalidate mini maps on Markets tab
     if (btn.dataset.tab === 'markets') {
-      setTimeout(() => {
-        document.querySelectorAll('.mini-map').forEach(el => {
-          const mapInstance = el._leaflet_id ? L.map(el) : null;
-        });
-      }, 200);
+      // Hide main map, show mini-maps full width
+      mapEl.style.display = 'none';
+      if (legendEl) legendEl.style.display = 'none';
+      if (toggleEl) toggleEl.style.display = 'none';
+      document.getElementById('sidebar').style.width = '100%';
+      document.getElementById('sidebar').style.minWidth = '100%';
+      // Init or refresh mini maps after layout settles
+      setTimeout(() => initMiniMaps(), 150);
+    } else {
+      // Show main map, restore sidebar width
+      mapEl.style.display = '';
+      if (legendEl) legendEl.style.display = '';
+      if (toggleEl) toggleEl.style.display = '';
+      document.getElementById('sidebar').style.width = '480px';
+      document.getElementById('sidebar').style.minWidth = '480px';
+      setTimeout(() => map.invalidateSize(), 100);
+
+      if (btn.dataset.tab === 'bce') map.flyTo([52, -115], 5, { duration: 0.8 });
+      else if (btn.dataset.tab === 'overview' || btn.dataset.tab === 'sovereign') map.flyTo([56, -96], 4, { duration: 0.8 });
     }
   });
 });
@@ -1739,7 +1778,7 @@ buildPowerChart();
 buildRegStance();
 buildProvinceCharts();
 buildPowerQueues();
-buildMetroMaps();
+buildMetroMapPlaceholders();
 buildInvestorContent();
 buildLegend();
 </script>
