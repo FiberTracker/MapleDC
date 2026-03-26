@@ -114,18 +114,23 @@ html, body { height: 100%; overflow: hidden; font-family: var(--font); backgroun
 .stat-label { font-size: 9px; color: var(--text-muted); margin-top: 2px; line-height: 1.3; }
 
 /* ═══════════════ TAB NAVIGATION ═══════════════ */
-.tab-bar { display: flex; border-bottom: 1px solid var(--border); flex-shrink: 0; background: var(--surface); overflow-x: auto; }
+.nav-container { flex-shrink: 0; background: var(--surface-alt); border-bottom: 1px solid var(--border); }
+.tab-bar {
+  display: flex; flex-wrap: wrap; padding: 6px 12px 0; gap: 2px;
+}
 .tab-btn {
-  flex-shrink: 0; padding: 9px 10px 7px; font-size: 9px; font-weight: 600; letter-spacing: 0.7px;
-  text-transform: uppercase; color: var(--gray-400); background: none; border: none;
-  cursor: pointer; position: relative; transition: color 0.2s; font-family: var(--font); white-space: nowrap;
+  padding: 8px 14px 6px; font-size: 10px; font-weight: 600; letter-spacing: 0.5px;
+  text-transform: uppercase; color: var(--gray-500); background: none; border: 1px solid transparent;
+  border-bottom: none; border-radius: 6px 6px 0 0; cursor: pointer; position: relative;
+  transition: all 0.15s; font-family: var(--font); white-space: nowrap;
 }
-.tab-btn:hover { color: var(--text-secondary); }
-.tab-btn.active { color: var(--red); }
-.tab-btn.active::after {
-  content: ''; position: absolute; bottom: 0; left: 15%; right: 15%;
-  height: 2px; background: var(--red); border-radius: 1px 1px 0 0;
-}
+.tab-btn:hover { color: var(--text-primary); background: var(--surface); }
+.tab-btn.active { color: var(--red); background: var(--surface); border-color: var(--border); font-weight: 700; }
+.tab-btn.market-tab { font-size: 9px; padding: 6px 10px 5px; color: var(--lagoon); }
+.tab-btn.market-tab.active { color: var(--red); }
+.tab-btn.chart-tab { color: var(--bronze); }
+.tab-btn.chart-tab.active { color: var(--red); }
+.tab-divider { width: 1px; background: var(--border); margin: 4px 4px; align-self: stretch; }
 
 /* ═══════════════ TAB CONTENT ═══════════════ */
 .sidebar-content { flex: 1; overflow-y: auto; }
@@ -264,7 +269,9 @@ sup.ref { font-size: 8px; color: var(--red); cursor: help; font-weight: 600; }
 
 /* ═══════════════ CHART CONTAINERS ═══════════════ */
 .chart-container { position: relative; width: 100%; margin: 8px 0; }
-.chart-container canvas { max-height: 220px; }
+.chart-container canvas { max-height: none; }
+#tab-overview .chart-container canvas { max-height: 220px; }
+#tab-charts .chart-container { padding: 0 8px; }
 
 /* ═══════════════ SOVEREIGN POLICY CARDS ═══════════════ */
 .policy-card {
@@ -420,15 +427,26 @@ sup.ref { font-size: 8px; color: var(--red); cursor: help; font-weight: 600; }
   </div>
 
   <!-- Tab bar -->
-  <div class="tab-bar">
-    <button class="tab-btn active" data-tab="sovereign">Sovereign</button>
-    <button class="tab-btn" data-tab="overview">Overview</button>
-    <button class="tab-btn" data-tab="bce">BCE</button>
-    <button class="tab-btn" data-tab="landscape">Landscape</button>
-    <button class="tab-btn" data-tab="power">Power</button>
-    <button class="tab-btn" data-tab="queue">Queue</button>
-    <button class="tab-btn" data-tab="markets">Markets</button>
-    <button class="tab-btn" data-tab="investors">Investors</button>
+  <div class="nav-container">
+    <div class="tab-bar">
+      <button class="tab-btn active" data-tab="sovereign">Sovereign</button>
+      <button class="tab-btn" data-tab="overview">Overview</button>
+      <button class="tab-btn" data-tab="bce">BCE</button>
+      <button class="tab-btn" data-tab="landscape">Landscape</button>
+      <button class="tab-btn" data-tab="power">Power</button>
+      <button class="tab-btn" data-tab="queue">Queue</button>
+      <button class="tab-btn chart-tab" data-tab="charts">Charts</button>
+      <button class="tab-btn" data-tab="investors">Investors</button>
+      <div class="tab-divider"></div>
+      <button class="tab-btn market-tab" data-tab="mkt-montreal">Montreal</button>
+      <button class="tab-btn market-tab" data-tab="mkt-toronto">Toronto</button>
+      <button class="tab-btn market-tab" data-tab="mkt-bc">BC Interior</button>
+      <button class="tab-btn market-tab" data-tab="mkt-calgary">Calgary</button>
+      <button class="tab-btn market-tab" data-tab="mkt-vancouver">Vancouver</button>
+      <button class="tab-btn market-tab" data-tab="mkt-regina">Regina</button>
+      <button class="tab-btn market-tab" data-tab="mkt-winnipeg">Winnipeg</button>
+      <button class="tab-btn market-tab" data-tab="mkt-edmonton">Edmonton</button>
+    </div>
   </div>
 
   <!-- Tab content -->
@@ -747,14 +765,43 @@ sup.ref { font-size: 8px; color: var(--red); cursor: help; font-weight: 600; }
       <div class="footnotes" id="queue-footnotes"></div>
     </div>
 
-    <!-- ═══ TAB: MARKETS ═══ -->
-    <div class="tab-panel" id="tab-markets">
+    <!-- ═══ TAB: CHARTS (full-screen analytics) ═══ -->
+    <div class="tab-panel" id="tab-charts">
       <div class="section">
-        <div class="section-label">Key Metro Markets — Zoom</div>
-        <div style="font-size:9px;color:var(--text-muted);margin-bottom:8px">Each map shows all known DC sites in the metro area with operator icons scaled by capacity.</div>
+        <div class="section-label">Capacity by Province</div>
+        <div class="chart-container" style="height:400px"><canvas id="chart-mw-province-full"></canvas></div>
       </div>
-      <div id="metro-maps"></div>
+      <div class="section">
+        <div class="section-label">Sites by Province & Sovereignty</div>
+        <div class="chart-container" style="height:400px"><canvas id="chart-sites-sov-full"></canvas></div>
+      </div>
+      <div class="section">
+        <div class="section-label">Deployment Status — All Sites</div>
+        <div class="chart-container" style="height:350px"><canvas id="chart-status-full"></canvas></div>
+      </div>
+      <div class="section">
+        <div class="section-label">Power Cost Comparison (USD ¢/kWh)</div>
+        <div class="chart-container" style="height:350px"><canvas id="chart-power-full"></canvas></div>
+      </div>
+      <div class="section">
+        <div class="section-label">AESO Alberta Queue — Phase 1 Allocation</div>
+        <div class="chart-container" style="height:300px"><canvas id="chart-aeso-full"></canvas></div>
+      </div>
+      <div class="section">
+        <div class="section-label">Sovereign vs CLOUD Act — Market Share</div>
+        <div class="chart-container" style="height:300px"><canvas id="chart-sov-pie-full"></canvas></div>
+      </div>
     </div>
+
+    <!-- ═══ MARKET TABS (one per metro) ═══ -->
+    <div class="tab-panel" id="tab-mkt-montreal"><div class="section"><div class="section-label">Montreal / Quebec</div></div><div class="section" id="mkt-map-montreal"></div></div>
+    <div class="tab-panel" id="tab-mkt-toronto"><div class="section"><div class="section-label">Toronto / Ontario</div></div><div class="section" id="mkt-map-toronto"></div></div>
+    <div class="tab-panel" id="tab-mkt-bc"><div class="section"><div class="section-label">BC Interior (Kamloops–Merritt)</div></div><div class="section" id="mkt-map-bc"></div></div>
+    <div class="tab-panel" id="tab-mkt-calgary"><div class="section"><div class="section-label">Calgary / Southern Alberta</div></div><div class="section" id="mkt-map-calgary"></div></div>
+    <div class="tab-panel" id="tab-mkt-vancouver"><div class="section"><div class="section-label">Vancouver</div></div><div class="section" id="mkt-map-vancouver"></div></div>
+    <div class="tab-panel" id="tab-mkt-regina"><div class="section"><div class="section-label">Regina / Saskatchewan</div></div><div class="section" id="mkt-map-regina"></div></div>
+    <div class="tab-panel" id="tab-mkt-winnipeg"><div class="section"><div class="section-label">Winnipeg / Manitoba</div></div><div class="section" id="mkt-map-winnipeg"></div></div>
+    <div class="tab-panel" id="tab-mkt-edmonton"><div class="section"><div class="section-label">Edmonton / Industrial Heartland</div></div><div class="section" id="mkt-map-edmonton"></div></div>
 
     <!-- ═══ TAB: INVESTOR UNIVERSE ═══ -->
     <div class="tab-panel" id="tab-investors">
@@ -929,15 +976,16 @@ const TIMELINE_EVENTS = [
   { date:'2028', text:'C$400M DC revenue target / C$1.5B total AI', cls:'' }
 ];
 
-const METRO_AREAS = [
-  { name:'Montreal / Quebec', center:[45.52, -73.58], zoom:10, provinces:['QC'] },
-  { name:'Toronto / Ontario', center:[43.65, -79.40], zoom:10, provinces:['ON'] },
-  { name:'BC Interior (Kamloops-Merritt)', center:[50.40, -120.50], zoom:9, provinces:['BC'] },
-  { name:'Calgary / Alberta', center:[51.05, -114.07], zoom:10, provinces:['AB'] },
-  { name:'Vancouver', center:[49.28, -123.12], zoom:11, provinces:['BC'] },
-  { name:'Regina / Saskatchewan', center:[50.45, -104.60], zoom:10, provinces:['SK'] },
-  { name:'Winnipeg / Manitoba', center:[49.90, -97.14], zoom:10, provinces:['MB'] }
-];
+const METRO_AREAS = {
+  'mkt-montreal': { name:'Montreal / Quebec', center:[45.52, -73.58], zoom:10, provinces:['QC'] },
+  'mkt-toronto': { name:'Toronto / Ontario', center:[43.65, -79.40], zoom:10, provinces:['ON'] },
+  'mkt-bc': { name:'BC Interior (Kamloops–Merritt)', center:[50.40, -120.50], zoom:9, provinces:['BC'], filterLat:[49.5, 51.5] },
+  'mkt-calgary': { name:'Calgary / Southern Alberta', center:[51.05, -114.07], zoom:9, provinces:['AB'], filterLat:[50.0, 52.0] },
+  'mkt-vancouver': { name:'Vancouver', center:[49.28, -123.12], zoom:11, provinces:['BC'], filterLat:[49.0, 49.5] },
+  'mkt-regina': { name:'Regina / Saskatchewan', center:[50.45, -104.60], zoom:10, provinces:['SK'] },
+  'mkt-winnipeg': { name:'Winnipeg / Manitoba', center:[49.90, -97.14], zoom:10, provinces:['MB'] },
+  'mkt-edmonton': { name:'Edmonton / Industrial Heartland', center:[53.55, -113.50], zoom:9, provinces:['AB'], filterLat:[53.0, 54.5] }
+};
 
 // Operator news database — populated with known public information
 const OPERATOR_NEWS = {
@@ -1484,72 +1532,200 @@ function buildQueueTable(containerId, data) {
   container.innerHTML = html;
 }
 
-// Markets tab — mini maps (deferred init — only created when tab first shown)
-let miniMapsBuilt = false;
-const miniMapInstances = [];
+// Market tab maps — one per metro, created on first visit
+const marketMapInstances = {};
 
-function buildMetroMapPlaceholders() {
-  const container = document.getElementById('metro-maps');
-  METRO_AREAS.forEach((metro, idx) => {
-    const sites = [...BCE_SITES, ...COMPETITORS].filter(s => metro.provinces.includes(s.province));
-    const totalMW = sites.reduce((sum, s) => sum + (s.mw || 0), 0);
-    const wrapper = document.createElement('div');
-    wrapper.className = 'section';
-    wrapper.innerHTML = `
-      <div class="mini-map-container">
-        <div class="mini-map-label">
-          <span>${metro.name}</span>
-          <span class="metro-stat">${sites.length} sites · ${totalMW > 0 ? totalMW + ' MW' : 'MW N/D'}</span>
-        </div>
-        <div class="mini-map" id="mini-map-${idx}"></div>
-      </div>
-    `;
-    container.appendChild(wrapper);
-  });
-}
-
-function initMiniMaps() {
-  if (miniMapsBuilt) {
-    miniMapInstances.forEach(m => m.invalidateSize());
+function initMarketMap(tabId) {
+  if (marketMapInstances[tabId]) {
+    marketMapInstances[tabId].invalidateSize();
     return;
   }
-  miniMapsBuilt = true;
+  const metro = METRO_AREAS[tabId];
+  if (!metro) return;
 
-  METRO_AREAS.forEach((metro, idx) => {
-    const sites = [...BCE_SITES, ...COMPETITORS].filter(s => metro.provinces.includes(s.province));
-    const el = document.getElementById(`mini-map-${idx}`);
-    if (!el) return;
+  const container = document.getElementById(tabId.replace('mkt-', 'mkt-map-'));
+  if (!container) return;
 
-    const miniMap = L.map(el, {
-      center: metro.center, zoom: metro.zoom, zoomControl: false,
-      attributionControl: false, scrollWheelZoom: true, dragging: true
-    });
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
-      maxZoom: 19, subdomains: 'abcd'
-    }).addTo(miniMap);
+  // Create map div full height
+  const mapDiv = document.createElement('div');
+  mapDiv.style.height = '500px';
+  mapDiv.style.width = '100%';
+  mapDiv.style.borderRadius = '6px';
+  mapDiv.style.overflow = 'hidden';
+  mapDiv.style.border = '1px solid var(--border)';
 
-    const bounds = [];
-    sites.forEach(site => {
-      const op = site.operator || 'BCE';
-      const color = OPERATOR_COLORS[op] || '#8E8D83';
-      const iconHTML = getDCIconHTML(site.mw || 0, color, op);
-      const totalW = site.mw >= 200 ? 40 : site.mw >= 100 ? 32 : 24;
-      const totalH = site.mw >= 200 ? 34 : site.mw >= 100 ? 28 : 20;
-      const icon = L.divIcon({ className: '', html: iconHTML, iconSize: [totalW, totalH], iconAnchor: [totalW/2, totalH] });
-      const marker = L.marker([site.lat, site.lng], { icon }).addTo(miniMap);
-      const label = site.id || op;
-      marker.bindPopup(`<strong style="color:${color}">${label}</strong><br>${site.name || site.site}<br>${site.mw ? site.mw + ' MW' : 'N/D'}`);
-      bounds.push([site.lat, site.lng]);
-    });
+  // Site list below map
+  const listDiv = document.createElement('div');
+  listDiv.style.marginTop = '12px';
 
-    // Fit to actual DC locations instead of static center
-    if (bounds.length > 1) {
-      miniMap.fitBounds(bounds, { padding: [30, 30], maxZoom: 12 });
-    } else if (bounds.length === 1) {
-      miniMap.setView(bounds[0], 11);
+  container.appendChild(mapDiv);
+  container.appendChild(listDiv);
+
+  const mktMap = L.map(mapDiv, {
+    center: metro.center, zoom: metro.zoom, zoomControl: true,
+    attributionControl: false, scrollWheelZoom: true
+  });
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+    maxZoom: 19, subdomains: 'abcd'
+  }).addTo(mktMap);
+
+  // Filter sites to this metro
+  let sites = [...BCE_SITES, ...COMPETITORS].filter(s => metro.provinces.includes(s.province));
+  if (metro.filterLat) {
+    sites = sites.filter(s => s.lat >= metro.filterLat[0] && s.lat <= metro.filterLat[1]);
+  }
+
+  const bounds = [];
+  const siteRows = [];
+  sites.forEach(site => {
+    const op = site.operator || 'BCE';
+    const color = OPERATOR_COLORS[op] || '#8E8D83';
+    const iconHTML = getDCIconHTML(site.mw || 0, color, op);
+    const totalW = site.mw >= 200 ? 40 : site.mw >= 100 ? 32 : 24;
+    const totalH = site.mw >= 200 ? 34 : site.mw >= 100 ? 28 : 20;
+    const icon = L.divIcon({ className: '', html: iconHTML, iconSize: [totalW, totalH], iconAnchor: [totalW/2, totalH] });
+    const marker = L.marker([site.lat, site.lng], { icon }).addTo(mktMap);
+    marker.bindPopup(() => buildPopup(site, op, color), { maxWidth: 320 });
+    bounds.push([site.lat, site.lng]);
+
+    siteRows.push(`<div class="comp-card" style="cursor:default">
+      <div class="comp-left">
+        <div class="comp-name" style="color:${color}">${site.id || op}</div>
+        <div class="comp-site">${site.name || site.site}</div>
+        <div class="comp-detail">${site.notes}<br><em style="font-size:8px;color:var(--text-muted)">Source: ${site.source || 'Market Intel'}</em></div>
+      </div>
+      <div class="comp-right">
+        <div class="comp-mw">${site.mw || 'N/D'}</div>
+        <div class="comp-mw-label">${site.mw ? 'MW' : ''}</div>
+      </div>
+    </div>`);
+  });
+
+  if (bounds.length > 1) {
+    mktMap.fitBounds(bounds, { padding: [40, 40], maxZoom: 12 });
+  } else if (bounds.length === 1) {
+    mktMap.setView(bounds[0], 11);
+  }
+
+  const totalMW = sites.reduce((sum, s) => sum + (s.mw || 0), 0);
+  listDiv.innerHTML = `<div class="section-label">${sites.length} sites · ${totalMW > 0 ? totalMW + ' MW total' : 'MW mostly undisclosed'}</div>` + siteRows.join('');
+
+  marketMapInstances[tabId] = mktMap;
+}
+
+// Full-screen Charts tab
+function buildFullCharts() {
+  const allSites = [...BCE_SITES, ...COMPETITORS];
+
+  // ── MW by Province (horizontal bar) ──
+  const provMW = {};
+  allSites.forEach(s => { provMW[s.province] = (provMW[s.province] || 0) + (s.mw || 0); });
+  const mwLabels = Object.keys(provMW).sort((a,b) => provMW[b] - provMW[a]).filter(k => provMW[k] > 0);
+  const pieColors = ['#E60000','#00759E','#469A6C','#B98E2C','#4972AC','#E4A911','#45999C','#879420','#BD000C'];
+
+  new Chart(document.getElementById('chart-mw-province-full'), {
+    type: 'bar',
+    data: {
+      labels: mwLabels,
+      datasets: [{ label: 'Known MW', data: mwLabels.map(l => provMW[l]), backgroundColor: pieColors.slice(0, mwLabels.length) }]
+    },
+    options: {
+      indexAxis: 'y', responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false }, title: { display: true, text: 'Known Datacenter Capacity (MW) by Province', font: { size: 14, family: 'DM Sans', weight: 700 } } },
+      scales: { x: { beginAtZero: true, title: { display: true, text: 'Megawatts' }, ticks: { font: { size: 11 } } }, y: { ticks: { font: { size: 12, weight: 600 } } } }
     }
+  });
 
-    miniMapInstances.push(miniMap);
+  // ── Sites by Province & Sovereignty (stacked bar) ──
+  const provGroups = {};
+  allSites.forEach(s => {
+    if (!provGroups[s.province]) provGroups[s.province] = { sovereign: 0, cloudAct: 0 };
+    if (s.sovereign === true || s.operator === 'BCE') provGroups[s.province].sovereign++;
+    else provGroups[s.province].cloudAct++;
+  });
+  const sovLabels = Object.keys(provGroups).sort((a,b) => (provGroups[b].sovereign + provGroups[b].cloudAct) - (provGroups[a].sovereign + provGroups[a].cloudAct));
+
+  new Chart(document.getElementById('chart-sites-sov-full'), {
+    type: 'bar',
+    data: {
+      labels: sovLabels,
+      datasets: [
+        { label: 'Sovereign (Canadian-owned)', data: sovLabels.map(l => provGroups[l].sovereign), backgroundColor: '#469A6C' },
+        { label: 'CLOUD Act Exposed (US-owned)', data: sovLabels.map(l => provGroups[l].cloudAct), backgroundColor: '#BD000C' }
+      ]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { position: 'bottom', labels: { font: { size: 11, family: 'DM Sans' }, padding: 12 } }, title: { display: true, text: 'Number of DC Sites by Province & Data Sovereignty Status', font: { size: 14, family: 'DM Sans', weight: 700 } } },
+      scales: { x: { stacked: true, ticks: { font: { size: 12, weight: 600 } } }, y: { stacked: true, beginAtZero: true, ticks: { font: { size: 11 } } } }
+    }
+  });
+
+  // ── Deployment Status (pie) ──
+  const statusCounts = {};
+  allSites.forEach(s => {
+    const lbl = (STATUS_MAP[s.status] || STATUS_MAP['PLANNED']).label;
+    statusCounts[lbl] = (statusCounts[lbl] || 0) + 1;
+  });
+  const statusLabels = Object.keys(statusCounts);
+  const statusColors = statusLabels.map(l => {
+    const entry = Object.values(STATUS_MAP).find(v => v.label === l);
+    return entry ? entry.color : '#8E8D83';
+  });
+
+  new Chart(document.getElementById('chart-status-full'), {
+    type: 'doughnut',
+    data: {
+      labels: statusLabels.map(l => `${l} (${statusCounts[l]})`),
+      datasets: [{ data: statusLabels.map(l => statusCounts[l]), backgroundColor: statusColors }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { position: 'right', labels: { font: { size: 11, family: 'DM Sans' }, padding: 10 } }, title: { display: true, text: 'All Sites by Deployment Stage', font: { size: 14, family: 'DM Sans', weight: 700 } } }
+    }
+  });
+
+  // ── Power Cost Comparison (horizontal bar) ──
+  new Chart(document.getElementById('chart-power-full'), {
+    type: 'bar',
+    data: {
+      labels: PROVINCE_POWER.map(p => p.name),
+      datasets: [{ label: 'USD ¢/kWh', data: PROVINCE_POWER.map(p => +(p.rate * 100).toFixed(1)), backgroundColor: PROVINCE_POWER.map(p => p.color) }]
+    },
+    options: {
+      indexAxis: 'y', responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false }, title: { display: true, text: 'Power Cost Comparison — Provinces & US Benchmarks (USD ¢/kWh)', font: { size: 14, family: 'DM Sans', weight: 700 } } },
+      scales: { x: { beginAtZero: true, title: { display: true, text: '¢/kWh (USD)' }, ticks: { font: { size: 11 } } }, y: { ticks: { font: { size: 11, weight: 500 } } } }
+    }
+  });
+
+  // ── AESO Phase 1 (pie) ──
+  new Chart(document.getElementById('chart-aeso-full'), {
+    type: 'pie',
+    data: {
+      labels: ['Greenlight / Meta (907 MW)', 'TransAlta / CPP / Brookfield (230 MW)', 'Unallocated (63 MW)'],
+      datasets: [{ data: [907, 230, 63], backgroundColor: ['#1877F2', '#6B8E23', '#d9d7d2'] }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { position: 'bottom', labels: { font: { size: 11, family: 'DM Sans' }, padding: 10 } }, title: { display: true, text: 'Alberta AESO Phase 1 — 1,200 MW Fully Allocated', font: { size: 14, family: 'DM Sans', weight: 700 } } }
+    }
+  });
+
+  // ── Sovereign vs CLOUD Act overall (pie) ──
+  let sovCount = 0, cloudCount = 0;
+  allSites.forEach(s => { if (s.sovereign === true || s.operator === 'BCE') sovCount++; else cloudCount++; });
+
+  new Chart(document.getElementById('chart-sov-pie-full'), {
+    type: 'doughnut',
+    data: {
+      labels: [`Sovereign / Canadian (${sovCount})`, `CLOUD Act Exposed (${cloudCount})`],
+      datasets: [{ data: [sovCount, cloudCount], backgroundColor: ['#469A6C', '#BD000C'] }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { position: 'bottom', labels: { font: { size: 12, family: 'DM Sans' }, padding: 12 } }, title: { display: true, text: 'Sovereign vs CLOUD Act — All Tracked Sites', font: { size: 14, family: 'DM Sans', weight: 700 } } }
+    }
   });
 }
 
@@ -1711,16 +1887,22 @@ document.querySelectorAll('.tab-btn').forEach(btn => {
 
     const sb = document.getElementById('sidebar');
 
-    if (btn.dataset.tab === 'markets') {
-      // Auto-expand for markets — hide main map, go full width
+    const tabId = btn.dataset.tab;
+    const isMarket = tabId.startsWith('mkt-');
+    const isFullWidth = isMarket || tabId === 'charts';
+
+    if (isFullWidth) {
+      // Full-width tabs — hide main map
       sb.classList.add('expanded');
       mapEl.style.display = 'none';
       if (legendEl) legendEl.style.display = 'none';
       if (toggleEl) toggleEl.style.display = 'none';
       document.getElementById('expandIcon').innerHTML = '<path d="M5 16h3v3h2v-5H5v2zm3-8H5v2h5V5H8v3zm6 11h2v-3h3v-2h-5v5zm2-11V5h-2v5h5V8h-3z"/>';
-      setTimeout(() => initMiniMaps(), 150);
+
+      if (isMarket) setTimeout(() => initMarketMap(tabId), 150);
+      if (tabId === 'charts' && !window._chartsBuilt) { setTimeout(() => { buildFullCharts(); window._chartsBuilt = true; }, 100); }
     } else {
-      // Restore sidebar mode (unless user manually expanded)
+      // Sidebar mode — show main map (unless user manually expanded)
       if (!sb.classList.contains('user-expanded')) {
         sb.classList.remove('expanded');
         mapEl.style.display = '';
@@ -1730,8 +1912,8 @@ document.querySelectorAll('.tab-btn').forEach(btn => {
         setTimeout(() => map.invalidateSize(), 100);
       }
 
-      if (btn.dataset.tab === 'bce') map.flyTo([52, -115], 5, { duration: 0.8 });
-      else if (btn.dataset.tab === 'overview' || btn.dataset.tab === 'sovereign') map.flyTo([56, -96], 4, { duration: 0.8 });
+      if (tabId === 'bce') map.flyTo([52, -115], 5, { duration: 0.8 });
+      else if (tabId === 'overview' || tabId === 'sovereign') map.flyTo([56, -96], 4, { duration: 0.8 });
     }
   });
 });
@@ -1824,7 +2006,7 @@ buildPowerChart();
 buildRegStance();
 buildProvinceCharts();
 buildPowerQueues();
-buildMetroMapPlaceholders();
+// Market maps and charts are deferred — built on first tab visit
 buildInvestorContent();
 buildLegend();
 </script>
